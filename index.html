@@ -1,0 +1,2665 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TRICKY: История</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            background: #0a0a12;
+            overflow: hidden;
+            font-family: 'Press Start 2P', monospace;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        #gameCanvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        /* PIXEL STYLED OVERLAY UI */
+        #transitionOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #0a0a12;
+            z-index: 200;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+        }
+        #transitionOverlay.active { opacity: 1; pointer-events: auto; }
+
+        #dialogBox {
+            position: fixed;
+            bottom: 8%;
+            left: 50%;
+            transform: translateX(-50%) scale(0.95);
+            width: 92%;
+            max-width: 640px;
+            background: #111128;
+            border: 4px solid #5a5a9a;
+            padding: 18px 22px;
+            color: #dde;
+            font-size: 11px;
+            line-height: 2;
+            z-index: 30;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.4s, transform 0.4s;
+            image-rendering: pixelated;
+            box-shadow: 0 0 0 4px #1a1a3a, inset 0 0 30px rgba(80,80,160,0.15);
+        }
+        #dialogBox::before {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            border: 2px solid #3a3a6a;
+            pointer-events: none;
+        }
+        #dialogBox.show {
+            display: block;
+            opacity: 1;
+            transform: translateX(-50%) scale(1);
+        }
+        
+        #speakerName {
+            color: #8af;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 12px;
+            text-shadow: 2px 2px 0 #000;
+            letter-spacing: 1px;
+        }
+        #dialogText {
+            margin-bottom: 14px;
+            font-size: 10px;
+            line-height: 2.2;
+            letter-spacing: 0.5px;
+        }
+        #dialogChoices {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .choice-btn {
+            background: #1a1a3a;
+            border: 3px solid #4a4a8a;
+            padding: 12px 16px;
+            color: #ccf;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 9px;
+            cursor: pointer;
+            text-align: left;
+            line-height: 1.8;
+            transition: all 0.15s;
+            image-rendering: pixelated;
+            letter-spacing: 0.5px;
+        }
+        .choice-btn:hover, .choice-btn:active {
+            background: #2a2a5a;
+            border-color: #7a7aba;
+            color: #fff;
+            transform: translateX(4px);
+        }
+
+        #hud {
+            position: fixed;
+            top: 8px; left: 8px; right: 8px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 25;
+            pointer-events: none;
+        }
+        .hud-item {
+            background: #0a0a1a;
+            padding: 8px 14px;
+            color: #fff;
+            font-size: 9px;
+            border: 3px solid #3a3a6a;
+            box-shadow: 0 0 0 2px #0a0a1a;
+            letter-spacing: 1px;
+        }
+
+        #notification {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: #111128;
+            border: 4px solid #7a7aba;
+            padding: 30px 40px;
+            color: #fff;
+            font-size: 12px;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.4s, transform 0.4s;
+            line-height: 2.2;
+            box-shadow: 0 0 60px rgba(100,100,200,0.3);
+            max-width: 90%;
+        }
+        #notification.show {
+            display: block;
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        #achievementPopup {
+            position: fixed;
+            top: 60px; right: -300px;
+            background: #0a2a0a;
+            border: 3px solid #4a8a4a;
+            padding: 14px 20px;
+            color: #8f8;
+            z-index: 50;
+            font-size: 9px;
+            line-height: 2;
+            transition: right 0.5s ease;
+            box-shadow: 0 0 20px rgba(50,200,50,0.2);
+        }
+        #achievementPopup.show { right: 15px; }
+
+        #loadingScreen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #0a0a12;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 1s;
+        }
+        #loadingScreen.fade { opacity: 0; pointer-events: none; }
+        .loading-text {
+            color: #8af;
+            font-size: 12px;
+            font-family: 'Press Start 2P', monospace;
+            animation: pulse 1s infinite;
+            letter-spacing: 2px;
+        }
+        .loading-bar {
+            width: 300px; height: 16px;
+            border: 3px solid #4a4a8a;
+            margin-top: 30px;
+            background: #0a0a1a;
+        }
+        .loading-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4a4a8a, #8a8afa);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        #minigameUI {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 40;
+            display: none;
+            pointer-events: auto;
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        #menuOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 60;
+            display: none;
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        .pixel-btn {
+            font-family: 'Press Start 2P', monospace;
+            background: #1a1a3a;
+            border: 3px solid #5a5a9a;
+            color: #ccf;
+            padding: 14px 32px;
+            font-size: 11px;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: all 0.15s;
+            line-height: 1.8;
+            min-width: 44px;
+            min-height: 44px;
+        }
+        .pixel-btn:hover, .pixel-btn:active {
+            background: #2a2a5a;
+            border-color: #8a8aba;
+            color: #fff;
+            transform: scale(1.03);
+        }
+        .pixel-btn-gold {
+            border-color: #aa8a2a;
+            color: #ffd700;
+            background: #2a2a1a;
+        }
+        .pixel-btn-gold:hover { border-color: #ffaa00; background: #3a3a2a; }
+        .pixel-btn-red {
+            border-color: #8a3a3a;
+            color: #f88;
+            background: #2a1a1a;
+        }
+        .pixel-btn-green {
+            border-color: #3a8a3a;
+            color: #8f8;
+            background: #1a2a1a;
+        }
+        .pixel-btn-green:hover { border-color: #5aba5a; background: #2a3a2a; }
+    </style>
+</head>
+<body>
+    <div id="loadingScreen">
+        <div class="loading-text">TRICKY: ИСТОРИЯ</div>
+        <div class="loading-bar"><div class="loading-fill" id="loadingFill"></div></div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="transitionOverlay"></div>
+    <div id="hud" style="display:none;">
+        <div class="hud-item" id="hudMoney">$0</div>
+        <div class="hud-item" id="hudRep">REP 0</div>
+        <div class="hud-item" id="hudEnergy">EN 100</div>
+    </div>
+    <div id="dialogBox">
+        <div id="speakerName"></div>
+        <div id="dialogText"></div>
+        <div id="dialogChoices"></div>
+    </div>
+    <div id="notification"></div>
+    <div id="achievementPopup"></div>
+    <div id="minigameUI"></div>
+    <div id="menuOverlay"></div>
+
+<script>
+// ===== SPRITE CUSTOMIZATION SYSTEM =====
+// To use custom PNG images instead of drawn sprites:
+// 1. Place your PNG files in the same folder as index.html
+// 2. Set the path below for each character
+// 3. Recommended size: 128x192 pixels for characters
+// Example: CUSTOM_SPRITES.tricky = 'tricky.png';
+const CUSTOM_SPRITES = {
+    tricky: null,       // 'tricky.png'
+    slade: null,        // 'slade.png' 
+    darkLord: null,     // 'darklord.png'
+    flowerGirl: null,   // 'flowergirl.png'
+    scammer: null,      // 'scammer.png'
+    megaTrader: null,   // 'megatrader.png'
+    hacker226: null,    // 'hacker226.png'
+    portals: null,      // 'portals.png'
+    mrkt: null,         // 'mrkt.png'
+    tonnel: null,       // 'tonnel.png'
+    mom: null           // 'mom.png'
+};
+const loadedSprites = {};
+function loadCustomSprites() {
+    for (const [key, src] of Object.entries(CUSTOM_SPRITES)) {
+        if (src) {
+            const img = new Image();
+            img.src = src;
+            img.onload = () => { loadedSprites[key] = img; };
+        }
+    }
+}
+loadCustomSprites();
+
+// ===== ENGINE SETUP =====
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const GW = 640, GH = 360;
+canvas.width = GW; canvas.height = GH;
+let scale = 1;
+function resize() {
+    const r = GW / GH;
+    let w = window.innerWidth, h = window.innerHeight;
+    if (w / h > r) w = h * r; else h = w / r;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    scale = w / GW;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ===== GAME STATE =====
+let gameState = 'loading';
+let chapter = 1, scene = 0;
+let money = 0, reputation = 0, energy = 100;
+let choices = [], achievements = [], storyFlags = {};
+let anim = 0, lastT = 0, particles = [];
+let minigameActive = false;
+let audioCtx = null;
+let musicPlaying = false;
+let menuMusicInterval = null;
+let typewriterInterval = null;
+let skipSchoolCount = 0;
+
+const PALETTE = {
+    skin: '#ffdbac', skinShade: '#e8c090',
+    hoodie: '#4a5568', hoodieDark: '#2d3748', hoodieLight: '#5a6a7a',
+    hair: '#1a1a2e',
+    jeans: '#2a3a5a', jeansDark: '#1a2a4a',
+    shoe: '#222',
+    neon: ['#ff006e','#8338ec','#3a86ff','#06ffa5'],
+    gold: '#ffd700'
+};
+
+const ACHIEVEMENTS = [
+    {id:'chapter1',name:'Просто Живу',desc:'Пройти Главу 1',icon:'[DOM]'},
+    {id:'tachycardia',name:'Сердцебиение',desc:'Пережить тахикардию',icon:'[SRD]'},
+    {id:'skipSchool',name:'Прогульщик',desc:'Пропустить школу 3 раза',icon:'[SKL]'},
+    {id:'firstDeal',name:'Доверенное Лицо',desc:'Первая сделка',icon:'[DLK]'},
+    {id:'rep100',name:'Репутация 100',desc:'Макс репутация',icon:'[REP]'},
+    {id:'catchScam',name:'Ловец Скамеров',desc:'Поймать мошенника',icon:'[DET]'},
+    {id:'meetSlade',name:'Встреча Судеб',desc:'Встретить Слейда',icon:'[SLD]'},
+    {id:'dupeMaster',name:'Мастер Дюпа',desc:'Освоить дюп',icon:'[DUP]'},
+    {id:'gardener',name:'Садовник',desc:'Дюпать в GAG',icon:'[GAG]'},
+    {id:'club200k',name:'Клуб $200K',desc:'Достичь $200,000',icon:'[200]'},
+    {id:'nftWhale',name:'NFT Кит',desc:'Купить 300+ Ion Gem',icon:'[NFT]'},
+    {id:'betrayal',name:'Предательство',desc:'Быть взломанным',icon:'[HAK]'},
+    {id:'community',name:'Сообщество',desc:'Получить помощь',icon:'[KOM]'},
+    {id:'survivor',name:'Выживший',desc:'Пройти всю игру',icon:'[WIN]'},
+    {id:'badEnd',name:'Плохая Концовка',desc:'Получить bad end',icon:'[BAD]'},
+    {id:'allPaths',name:'Все Пути',desc:'Все ветки сюжета',icon:'[ALL]'},
+    {id:'minigameMaster',name:'Мастер Мини-Игр',desc:'Все мини-игры',icon:'[MGM]'},
+    {id:'secretHunter',name:'Секреты',desc:'Найти 3 пасхалки',icon:'[SEC]'}
+];
+
+// ===== AUDIO =====
+function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playNote(freq, dur, type='square', vol=0.08) {
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+}
+function playSFX(type) {
+    if (!audioCtx) return;
+    switch(type) {
+        case 'click': playNote(600,0.08,'square',0.06); break;
+        case 'success':
+            playNote(523,0.1,'square',0.07);
+            setTimeout(()=>playNote(659,0.1,'square',0.07),80);
+            setTimeout(()=>playNote(784,0.15,'square',0.07),160);
+            break;
+        case 'fail': playNote(180,0.3,'sawtooth',0.08); break;
+        case 'heartbeat':
+            playNote(70,0.12,'sine',0.15);
+            setTimeout(()=>playNote(55,0.18,'sine',0.12),120);
+            break;
+        case 'money': playNote(880,0.05,'square',0.06); setTimeout(()=>playNote(1100,0.08,'square',0.06),40); break;
+        case 'achievement':
+            [523,659,784,1047].forEach((f,i)=>setTimeout(()=>playNote(f,0.18,'triangle',0.08),i*90));
+            break;
+        case 'transition': playNote(200,0.5,'sine',0.04); break;
+        case 'typing': playNote(800+Math.random()*400,0.03,'square',0.03); break;
+    }
+}
+function startMenuMusic() {
+    if (!audioCtx || musicPlaying) return;
+    musicPlaying = true;
+    const notes = [262,294,330,392,440,392,330,294,262,196,220,262,330,262,220,196];
+    let i = 0;
+    function playNext() {
+        if (gameState !== 'menu' || !musicPlaying) { musicPlaying = false; return; }
+        playNote(notes[i % notes.length], 0.25, 'triangle', 0.04);
+        playNote(notes[i % notes.length] / 2, 0.3, 'sine', 0.02);
+        i++;
+        menuMusicInterval = setTimeout(playNext, 350);
+    }
+    playNext();
+}
+function stopMenuMusic() {
+    musicPlaying = false;
+    if (menuMusicInterval) clearTimeout(menuMusicInterval);
+}
+
+// ===== TRANSITIONS =====
+const overlay = document.getElementById('transitionOverlay');
+function fadeOut(dur=600) {
+    return new Promise(r => {
+        overlay.style.transition = `opacity ${dur}ms ease`;
+        overlay.classList.add('active');
+        setTimeout(r, dur);
+    });
+}
+function fadeIn(dur=600) {
+    return new Promise(r => {
+        overlay.style.transition = `opacity ${dur}ms ease`;
+        overlay.classList.remove('active');
+        setTimeout(r, dur);
+    });
+}
+async function transition(fn, dur=500) {
+    playSFX('transition');
+    await fadeOut(dur);
+    if (fn) fn();
+    await new Promise(r=>setTimeout(r,200));
+    await fadeIn(dur);
+}
+
+// ===== PIXEL TEXT =====
+function pxText(text, x, y, size=10, color='#fff', align='left') {
+    ctx.font = `${size}px "Press Start 2P", monospace`;
+    ctx.textAlign = align;
+    ctx.fillStyle = '#000';
+    ctx.fillText(text, x+1, y+1);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    ctx.textAlign = 'left';
+}
+
+// ===== PARTICLES =====
+function spawnParticles(x, y, type, count=10) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x, y,
+            vx: (Math.random()-0.5)*6,
+            vy: -Math.random()*4 - 1,
+            life: 80 + Math.random()*40,
+            maxLife: 120,
+            type,
+            size: 2 + Math.random()*3,
+            color: type === 'money' ? '#ffd700' : 
+                   type === 'confetti' ? `hsl(${Math.random()*360},90%,60%)` :
+                   type === 'heart' ? '#ff4466' : '#fff'
+        });
+    }
+}
+function updateParticles() {
+    for (let i = particles.length-1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy;
+        p.vy += 0.08;
+        p.vx *= 0.99;
+        p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+}
+function drawParticles() {
+    for (const p of particles) {
+        const a = Math.min(1, p.life / 30);
+        ctx.globalAlpha = a;
+        ctx.fillStyle = p.color;
+        if (p.type === 'confetti') {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.life * 0.1);
+            ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*0.6);
+            ctx.restore();
+        } else {
+            ctx.fillRect(Math.floor(p.x), Math.floor(p.y), Math.ceil(p.size), Math.ceil(p.size));
+        }
+    }
+    ctx.globalAlpha = 1;
+}
+
+// ===== CHARACTER DRAWING =====
+function drawCharacter(name, x, y, state='idle', frame=0, options={}) {
+    // Check for custom sprite
+    if (loadedSprites[name]) {
+        const img = loadedSprites[name];
+        const w = options.width || 64;
+        const h = options.height || 96;
+        ctx.drawImage(img, x, y, w, h);
+        return;
+    }
+    // Procedural drawing
+    switch(name) {
+        case 'tricky': drawTricky(x, y, state, frame); break;
+        case 'slade': drawSlade(x, y, state, frame); break;
+        case 'darkLord': drawNPC(x, y, '#2a0a0a', '#600', 'DrkLrd', frame); break;
+        case 'flowerGirl': drawNPC(x, y, '#ffc0cb', '#f9a', 'Flower', frame); break;
+        case 'scammer': drawNPC(x, y, '#333', '#555', 'Legit?', frame); break;
+        case 'megaTrader': drawNPC(x, y, '#1a3a5a', '#2a5a8a', 'MEGA', frame); break;
+        case 'hacker226': drawNPC(x, y, '#300', '#800', '226', frame); break;
+        case 'portals': drawNPC(x, y, '#2a0a4a', '#6a2aba', 'Prtls', frame); break;
+        case 'mrkt': drawNPC(x, y, '#0a2a0a', '#2a8a2a', 'Mrkt', frame); break;
+        case 'tonnel': drawNPC(x, y, '#0a1a3a', '#2a4a9a', 'Tnnl', frame); break;
+        default: drawNPC(x, y, '#444', '#666', '???', frame);
+    }
+}
+
+function drawTricky(x, y, state='idle', frame=0) {
+    const f = Math.floor(frame) % 60;
+    const breathe = Math.sin(f * 0.1) * 1.5;
+    const by = y + breathe;
+    const isWalk = state === 'walk';
+    const isSad = state === 'sad';
+    const isHappy = state === 'happy';
+    const isShock = state === 'shock';
+    
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(x+32, y+94, 22, 6, 0, 0, Math.PI*2);
+    ctx.fill();
+    
+    // Legs
+    const legSwing = isWalk ? Math.sin(f*0.3)*6 : 0;
+    ctx.fillStyle = PALETTE.jeans;
+    ctx.fillRect(x+18, by+72, 12, 18);
+    ctx.fillRect(x+34, by+72, 12, 18);
+    ctx.fillStyle = PALETTE.jeansDark;
+    ctx.fillRect(x+18, by+72+legSwing, 12, 4);
+    ctx.fillRect(x+34, by+72-legSwing, 12, 4);
+    // Shoes
+    ctx.fillStyle = PALETTE.shoe;
+    ctx.fillRect(x+16, by+88, 16, 6);
+    ctx.fillRect(x+32, by+88, 16, 6);
+    
+    // Body / Hoodie
+    const hoodieY = isSad ? by+2 : by;
+    ctx.fillStyle = PALETTE.hoodie;
+    ctx.fillRect(x+12, hoodieY+34, 40, 40);
+    ctx.fillStyle = PALETTE.hoodieDark;
+    ctx.fillRect(x+12, hoodieY+60, 40, 14);
+    // Hoodie pocket
+    ctx.fillStyle = PALETTE.hoodieLight;
+    ctx.fillRect(x+20, hoodieY+52, 24, 10);
+    ctx.strokeStyle = PALETTE.hoodieDark;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x+20, hoodieY+52, 24, 10);
+    // Hoodie strings
+    ctx.fillStyle = '#888';
+    ctx.fillRect(x+28, hoodieY+34, 2, 12);
+    ctx.fillRect(x+34, hoodieY+34, 2, 12);
+    // Hoodie zipper line
+    ctx.fillStyle = PALETTE.hoodieDark;
+    ctx.fillRect(x+31, hoodieY+34, 2, 38);
+    
+    // Arms
+    const armSwing = isWalk ? Math.sin(f*0.3)*8 : 0;
+    const armY = isHappy ? -12 : (isShock ? -6 : 0);
+    ctx.fillStyle = PALETTE.hoodie;
+    ctx.fillRect(x+4, hoodieY+36+armSwing+armY, 12, 28);
+    ctx.fillRect(x+48, hoodieY+36-armSwing+armY, 12, 28);
+    ctx.fillStyle = PALETTE.hoodieDark;
+    ctx.fillRect(x+4, hoodieY+36+armSwing+armY, 12, 4);
+    ctx.fillRect(x+48, hoodieY+36-armSwing+armY, 12, 4);
+    // Hands
+    ctx.fillStyle = PALETTE.skin;
+    ctx.fillRect(x+5, hoodieY+62+armSwing+armY, 10, 8);
+    ctx.fillRect(x+49, hoodieY+62-armSwing+armY, 10, 8);
+    ctx.fillStyle = PALETTE.skinShade;
+    ctx.fillRect(x+5, hoodieY+68+armSwing+armY, 10, 2);
+    ctx.fillRect(x+49, hoodieY+68-armSwing+armY, 10, 2);
+    
+    // Hood
+    ctx.fillStyle = PALETTE.hoodie;
+    ctx.beginPath();
+    ctx.moveTo(x+10, hoodieY+34);
+    ctx.quadraticCurveTo(x+32, hoodieY+5, x+54, hoodieY+34);
+    ctx.fill();
+    ctx.fillStyle = PALETTE.hoodieLight;
+    ctx.beginPath();
+    ctx.moveTo(x+14, hoodieY+34);
+    ctx.quadraticCurveTo(x+32, hoodieY+10, x+50, hoodieY+34);
+    ctx.fill();
+    
+    // Head (behind hood)
+    ctx.fillStyle = PALETTE.skin;
+    ctx.beginPath();
+    ctx.arc(x+32, hoodieY+22, 16, 0, Math.PI*2);
+    ctx.fill();
+    
+    // Blurred face - pixelated blocks
+    const blockSize = 5;
+    for (let bx = 0; bx < 5; bx++) {
+        for (let byy = 0; byy < 4; byy++) {
+            const shade = 180 + Math.floor(Math.sin(bx*3+byy*7+f*0.05)*30);
+            ctx.fillStyle = `rgb(${shade+30},${shade},${shade-20})`;
+            ctx.fillRect(x+15+bx*blockSize, hoodieY+12+byy*blockSize, blockSize, blockSize);
+        }
+    }
+    
+    // Emotion effects
+    if (isHappy) {
+        ctx.fillStyle = '#ff0';
+        for (let i=0; i<3; i++) {
+            const sx = x+20+i*10 + Math.sin(f*0.2+i)*3;
+            const sy = hoodieY - 5 + Math.sin(f*0.15+i*2)*4;
+            ctx.fillRect(sx, sy, 3, 3);
+        }
+    }
+    if (isSad) {
+        ctx.fillStyle = 'rgba(100,100,200,0.6)';
+        ctx.fillRect(x+40, hoodieY+18, 3, 4);
+        ctx.fillRect(x+42, hoodieY+22, 2, 3);
+    }
+    if (isShock) {
+        pxText('!', x+28, hoodieY-2, 14, '#ff0');
+    }
+}
+
+function drawSlade(x, y, state='idle', frame=0) {
+    const f = Math.floor(frame)%60;
+    const b = Math.sin(f*0.1)*1;
+    const by = y+b;
+    
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(x+32, y+94, 22, 6, 0, 0, Math.PI*2);
+    ctx.fill();
+    
+    // Legs
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(x+18, by+72, 12, 18);
+    ctx.fillRect(x+34, by+72, 12, 18);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(x+16, by+88, 16, 6);
+    ctx.fillRect(x+32, by+88, 16, 6);
+    
+    // Body - cyber hoodie
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(x+12, by+34, 40, 40);
+    // Neon stripes
+    const glowA = 0.6+Math.sin(f*0.1)*0.4;
+    ctx.fillStyle = `rgba(0,255,255,${glowA})`;
+    ctx.fillRect(x+14, by+44, 36, 2);
+    ctx.fillRect(x+14, by+54, 36, 2);
+    ctx.fillRect(x+14, by+64, 36, 2);
+    
+    // Arms
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(x+4, by+36, 12, 28);
+    ctx.fillRect(x+48, by+36, 12, 28);
+    ctx.fillStyle = PALETTE.skin;
+    ctx.fillRect(x+5, by+62, 10, 8);
+    ctx.fillRect(x+49, by+62, 10, 8);
+    
+    // Hood
+    ctx.fillStyle = '#1a1a2e';
+    ctx.beginPath();
+    ctx.moveTo(x+10, by+34);
+    ctx.quadraticCurveTo(x+32, by+5, x+54, by+34);
+    ctx.fill();
+    
+    // Head
+    ctx.fillStyle = PALETTE.skin;
+    ctx.beginPath();
+    ctx.arc(x+32, by+22, 16, 0, Math.PI*2);
+    ctx.fill();
+    
+    // Sunglasses
+    ctx.fillStyle = '#111';
+    ctx.fillRect(x+18, by+17, 12, 7);
+    ctx.fillRect(x+34, by+17, 12, 7);
+    ctx.fillRect(x+30, by+19, 4, 3);
+    // Glasses glint
+    ctx.fillStyle = `rgba(0,255,255,${glowA*0.5})`;
+    ctx.fillRect(x+20, by+18, 4, 2);
+    ctx.fillRect(x+36, by+18, 4, 2);
+    
+    // Smirk
+    ctx.fillStyle = '#c8a080';
+    ctx.fillRect(x+24, by+28, 16, 2);
+}
+
+function drawNPC(x, y, bodyColor, accentColor, label, frame=0) {
+    const f = Math.floor(frame)%60;
+    const b = Math.sin(f*0.1)*1;
+    const by = y+b;
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(x+24, y+74, 18, 5, 0, 0, Math.PI*2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x+12, by+56, 10, 14);
+    ctx.fillRect(x+26, by+56, 10, 14);
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(x+8, by+26, 32, 32);
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(x+8, by+26, 32, 6);
+    ctx.fillRect(x+2, by+28, 10, 22);
+    ctx.fillRect(x+36, by+28, 10, 22);
+    ctx.fillStyle = PALETTE.skin;
+    ctx.fillRect(x+4, by+48, 8, 6);
+    ctx.fillRect(x+38, by+48, 8, 6);
+    ctx.fillStyle = PALETTE.skin;
+    ctx.beginPath();
+    ctx.arc(x+24, by+18, 13, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x+16, by+13, 5, 4);
+    ctx.fillRect(x+27, by+13, 5, 4);
+    ctx.fillStyle = '#c8a080';
+    ctx.fillRect(x+19, by+22, 10, 2);
+    
+    pxText(label, x+24, by-4, 6, accentColor, 'center');
+}
+
+// ===== DETAILED ROOM DRAWING =====
+function drawRoom(timeOfDay='morning', hasSecondMonitor=false) {
+    // Floor
+    ctx.fillStyle = '#2a2a36';
+    ctx.fillRect(0, 268, GW, GH-268);
+    // Floor boards
+    ctx.strokeStyle = '#222230';
+    ctx.lineWidth = 1;
+    for (let i=0; i<GW; i+=40) {
+        ctx.beginPath(); ctx.moveTo(i, 268); ctx.lineTo(i, GH); ctx.stroke();
+    }
+    // Floor highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    ctx.fillRect(0, 268, GW, 4);
+    
+    // Wall
+    let wallC1, wallC2;
+    switch(timeOfDay) {
+        case 'morning': wallC1='#4a5066'; wallC2='#363a4a'; break;
+        case 'day': wallC1='#556078'; wallC2='#404a5a'; break;
+        case 'evening': wallC1='#3a3a50'; wallC2='#282838'; break;
+        case 'night': wallC1='#222238'; wallC2='#181828'; break;
+        default: wallC1='#4a5066'; wallC2='#363a4a';
+    }
+    const wg = ctx.createLinearGradient(0,0,0,268);
+    wg.addColorStop(0, wallC1);
+    wg.addColorStop(1, wallC2);
+    ctx.fillStyle = wg;
+    ctx.fillRect(0, 0, GW, 268);
+    
+    // Baseboard
+    ctx.fillStyle = '#3a3020';
+    ctx.fillRect(0, 260, GW, 10);
+    ctx.fillStyle = '#4a4030';
+    ctx.fillRect(0, 260, GW, 3);
+    
+    // Carpet under desk area
+    ctx.fillStyle = 'rgba(100,50,50,0.15)';
+    ctx.fillRect(40, 275, 200, 85);
+    ctx.strokeStyle = 'rgba(150,80,80,0.2)';
+    ctx.strokeRect(40, 275, 200, 85);
+    
+    // Wall clock
+    drawWallClock(300, 40, timeOfDay);
+    
+    // Posters
+    drawDetailedPoster(20, 35, 'ROBLOX', '#e74c3c');
+    drawDetailedPoster(180, 28, 'GAME', '#3498db');
+    
+    // Shelf
+    drawShelf(400, 80);
+    
+    // Window
+    drawDetailedWindow(460, 35, 140, 130, timeOfDay);
+    
+    // Desk & Computer
+    drawDetailedDesk(70, 165, hasSecondMonitor);
+    
+    // Chair
+    drawChair(30, 210);
+    
+    // Bed
+    drawDetailedBed(350, 190);
+    
+    // Nightstand & phone
+    drawNightstand(510, 230);
+    
+    // Ambient light from monitor
+    if (timeOfDay === 'night' || timeOfDay === 'evening') {
+        const lg = ctx.createRadialGradient(140, 200, 10, 140, 200, 160);
+        lg.addColorStop(0, 'rgba(60,100,200,0.08)');
+        lg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = lg;
+        ctx.fillRect(0, 100, 300, 200);
+    }
+}
+
+function drawWallClock(x, y) {
+    ctx.fillStyle = '#4a3a2a';
+    ctx.beginPath();
+    ctx.arc(x, y, 18, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#ddd';
+    ctx.beginPath();
+    ctx.arc(x, y, 15, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, Math.PI*2);
+    ctx.fill();
+    // Hour hand
+    const h = (anim*0.001) % (Math.PI*2);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x+Math.cos(h-Math.PI/2)*8, y+Math.sin(h-Math.PI/2)*8);
+    ctx.stroke();
+    // Minute hand
+    const m = (anim*0.01) % (Math.PI*2);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x+Math.cos(m-Math.PI/2)*12, y+Math.sin(m-Math.PI/2)*12);
+    ctx.stroke();
+    // Numbers
+    for (let i=1; i<=12; i++) {
+        const a = (i/12)*Math.PI*2 - Math.PI/2;
+        ctx.fillStyle = '#555';
+        ctx.fillRect(x+Math.cos(a)*13-1, y+Math.sin(a)*13-1, 2, 2);
+    }
+}
+
+function drawDetailedPoster(x, y, text, bgColor) {
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(x+3, y+3, 48, 58);
+    // Border
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(x, y, 48, 58);
+    // Background
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(x+3, y+3, 42, 52);
+    // Details
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(x+6, y+6, 36, 20);
+    pxText(text, x+24, y+38, 7, '#fff', 'center');
+    // Tape
+    ctx.fillStyle = 'rgba(200,200,150,0.6)';
+    ctx.fillRect(x+18, y-4, 12, 8);
+}
+
+function drawShelf(x, y) {
+    // Bracket
+    ctx.fillStyle = '#5a4a3a';
+    ctx.fillRect(x, y+22, 120, 6);
+    ctx.fillRect(x+5, y+28, 6, 12);
+    ctx.fillRect(x+109, y+28, 6, 12);
+    // Books
+    const bookColors = ['#c0392b','#2980b9','#27ae60','#8e44ad','#f39c12','#1abc9c'];
+    let bx = x+4;
+    bookColors.forEach((c,i) => {
+        const bw = 8+Math.floor(i*1.5);
+        const bh = 18+i*1;
+        ctx.fillStyle = c;
+        ctx.fillRect(bx, y+22-bh, bw, bh);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(bx+1, y+22-bh+2, bw-2, 3);
+        bx += bw+2;
+    });
+    // Small figure on shelf
+    ctx.fillStyle = '#ff0';
+    ctx.fillRect(x+100, y+10, 8, 12);
+    ctx.fillStyle = '#ffa';
+    ctx.fillRect(x+102, y+6, 4, 4);
+}
+
+function drawDetailedWindow(x, y, w, h, timeOfDay) {
+    // Frame outer
+    ctx.fillStyle = '#5a4a3a';
+    ctx.fillRect(x-6, y-6, w+12, h+12);
+    // Frame inner
+    ctx.fillStyle = '#6a5a4a';
+    ctx.fillRect(x-3, y-3, w+6, h+6);
+    
+    // Sky
+    let skyColors;
+    switch(timeOfDay) {
+        case 'morning': skyColors=['#ff9a56','#ff6b6b','#74b9ff']; break;
+        case 'day': skyColors=['#74b9ff','#0984e3','#a8e6cf']; break;
+        case 'evening': skyColors=['#e17055','#d63031','#2d3436']; break;
+        case 'night': skyColors=['#0a0a1a','#1a1a3a','#2a2a5a']; break;
+        default: skyColors=['#74b9ff','#0984e3','#a8e6cf'];
+    }
+    const sg = ctx.createLinearGradient(x, y, x, y+h);
+    sg.addColorStop(0, skyColors[0]);
+    sg.addColorStop(0.5, skyColors[1]);
+    sg.addColorStop(1, skyColors[2]);
+    ctx.fillStyle = sg;
+    ctx.fillRect(x, y, w, h);
+    
+    // Clouds (morning/day)
+    if (timeOfDay === 'morning' || timeOfDay === 'day') {
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        const cx = x + ((anim*0.3) % (w+30)) - 15;
+        ctx.beginPath();
+        ctx.arc(cx, y+25, 10, 0, Math.PI*2);
+        ctx.arc(cx+12, y+22, 12, 0, Math.PI*2);
+        ctx.arc(cx+24, y+25, 9, 0, Math.PI*2);
+        ctx.fill();
+    }
+    
+    // Stars (night)
+    if (timeOfDay === 'night') {
+        ctx.fillStyle = '#fff';
+        for (let i=0; i<20; i++) {
+            const sx = x+5+(i*31)%130;
+            const sy = y+5+(i*17)%50;
+            const tw = Math.sin(anim*0.05+i)*0.5+0.5;
+            ctx.globalAlpha = tw*0.8;
+            ctx.fillRect(sx, sy, 2, 2);
+        }
+        ctx.globalAlpha = 1;
+        // Moon
+        ctx.fillStyle = '#ffe';
+        ctx.beginPath();
+        ctx.arc(x+110, y+25, 12, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = skyColors[0];
+        ctx.beginPath();
+        ctx.arc(x+115, y+22, 10, 0, Math.PI*2);
+        ctx.fill();
+    }
+    
+    // Buildings
+    ctx.fillStyle = timeOfDay === 'night' ? '#111' : '#2d3436';
+    const buildings = [
+        {bx:0,bw:20,bh:55},{bx:22,bw:18,bh:40},{bx:42,bw:25,bh:70},
+        {bx:70,bw:20,bh:45},{bx:92,bw:22,bh:60},{bx:116,bw:24,bh:50}
+    ];
+    buildings.forEach(b => {
+        ctx.fillRect(x+b.bx, y+h-b.bh, b.bw, b.bh);
+        // Windows
+        if (timeOfDay === 'night' || timeOfDay === 'evening') {
+            for (let wy=0; wy<Math.floor(b.bh/12); wy++) {
+                for (let wx=0; wx<Math.floor(b.bw/8); wx++) {
+                    if (Math.sin(b.bx*wx+wy*7+anim*0.01)>0.2) {
+                        ctx.fillStyle = '#ffa';
+                        ctx.fillRect(x+b.bx+3+wx*8, y+h-b.bh+5+wy*12, 4, 5);
+                        ctx.fillStyle = timeOfDay === 'night' ? '#111' : '#2d3436';
+                    }
+                }
+            }
+        }
+    });
+    
+    // Window frame cross
+    ctx.fillStyle = '#5a4a3a';
+    ctx.fillRect(x+w/2-2, y, 4, h);
+    ctx.fillRect(x, y+h/2-2, w, 4);
+    
+    // Curtains
+    ctx.fillStyle = 'rgba(100,60,60,0.4)';
+    ctx.fillRect(x-2, y, 15, h);
+    ctx.fillRect(x+w-13, y, 15, h);
+    // Curtain folds
+    ctx.fillStyle = 'rgba(80,40,40,0.3)';
+    ctx.fillRect(x+2, y, 3, h);
+    ctx.fillRect(x+w-8, y, 3, h);
+}
+
+function drawDetailedDesk(x, y, hasSecondMonitor) {
+    // Desk surface
+    ctx.fillStyle = '#5a4030';
+    ctx.fillRect(x-10, y+55, 170, 12);
+    // Desk front
+    ctx.fillStyle = '#4a3020';
+    ctx.fillRect(x-10, y+67, 170, 8);
+    // Legs
+    ctx.fillStyle = '#4a3020';
+    ctx.fillRect(x-5, y+75, 10, 32);
+    ctx.fillRect(x+145, y+75, 10, 32);
+    // Drawer
+    ctx.fillStyle = '#5a4030';
+    ctx.fillRect(x+110, y+75, 40, 30);
+    ctx.fillStyle = '#6a5040';
+    ctx.fillRect(x+126, y+86, 10, 4);
+    
+    // Keyboard
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x+25, y+46, 60, 12);
+    ctx.fillStyle = '#333';
+    for (let kx=0; kx<8; kx++) {
+        for (let ky=0; ky<2; ky++) {
+            ctx.fillRect(x+27+kx*7, y+47+ky*5, 5, 4);
+        }
+    }
+    
+    // Mouse
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x+95, y+48, 10, 14);
+    ctx.fillStyle = '#444';
+    ctx.fillRect(x+97, y+49, 6, 5);
+    // Mousepad
+    ctx.fillStyle = '#1a1a3a';
+    ctx.fillRect(x+88, y+44, 24, 22);
+    
+    // Main monitor
+    ctx.fillStyle = '#1a1a2a';
+    ctx.fillRect(x+30, y, 60, 48);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(x+32, y+2, 56, 40);
+    // Screen glow
+    const sg = ctx.createRadialGradient(x+60, y+22, 5, x+60, y+22, 30);
+    sg.addColorStop(0, '#3a7aff');
+    sg.addColorStop(1, '#1a3a6a');
+    ctx.fillStyle = sg;
+    ctx.fillRect(x+33, y+3, 54, 38);
+    // Screen content lines
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    for (let i=0; i<5; i++) {
+        ctx.fillRect(x+38, y+8+i*7, 20+Math.sin(i+anim*0.02)*10, 2);
+    }
+    // Monitor stand
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x+55, y+48, 10, 8);
+    ctx.fillRect(x+48, y+54, 24, 4);
+    
+    // Second monitor
+    if (hasSecondMonitor) {
+        ctx.fillStyle = '#1a1a2a';
+        ctx.fillRect(x+100, y+5, 50, 40);
+        ctx.fillStyle = '#111';
+        ctx.fillRect(x+102, y+7, 46, 34);
+        const sg2 = ctx.createRadialGradient(x+125, y+24, 5, x+125, y+24, 25);
+        sg2.addColorStop(0, '#2a8a4a');
+        sg2.addColorStop(1, '#1a3a2a');
+        ctx.fillStyle = sg2;
+        ctx.fillRect(x+103, y+8, 44, 32);
+        ctx.fillStyle = '#222';
+        ctx.fillRect(x+121, y+45, 8, 6);
+        ctx.fillRect(x+115, y+49, 20, 4);
+    }
+    
+    // Coffee mug
+    ctx.fillStyle = '#8a4020';
+    ctx.fillRect(x+5, y+44, 12, 14);
+    ctx.fillStyle = '#9a5030';
+    ctx.fillRect(x+4, y+44, 14, 3);
+    // Steam
+    if (anim % 40 < 20) {
+        ctx.fillStyle = 'rgba(200,200,200,0.3)';
+        ctx.fillRect(x+9, y+38+Math.sin(anim*0.1)*2, 2, 5);
+    }
+}
+
+function drawChair(x, y) {
+    // Base
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x+10, y+50, 30, 6);
+    // Legs with wheels
+    ctx.fillRect(x+5, y+56, 4, 16);
+    ctx.fillRect(x+41, y+56, 4, 16);
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(x+7, y+74, 3, 0, Math.PI*2);
+    ctx.arc(x+43, y+74, 3, 0, Math.PI*2);
+    ctx.fill();
+    // Seat
+    ctx.fillStyle = '#2a2a3a';
+    ctx.fillRect(x, y+34, 50, 18);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x+2, y+36, 46, 12);
+    // Back
+    ctx.fillStyle = '#2a2a3a';
+    ctx.fillRect(x+8, y+2, 34, 34);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x+10, y+4, 30, 28);
+    // Armrests
+    ctx.fillStyle = '#2a2a3a';
+    ctx.fillRect(x-2, y+28, 8, 4);
+    ctx.fillRect(x+44, y+28, 8, 4);
+}
+
+function drawDetailedBed(x, y) {
+    // Bed frame
+    ctx.fillStyle = '#5a4a3a';
+    ctx.fillRect(x, y+50, 170, 55);
+    // Headboard
+    ctx.fillStyle = '#6a5a4a';
+    ctx.fillRect(x+140, y+20, 30, 40);
+    ctx.fillStyle = '#7a6a5a';
+    ctx.fillRect(x+145, y+25, 20, 30);
+    // Mattress
+    ctx.fillStyle = '#7878aa';
+    ctx.fillRect(x+5, y+35, 140, 20);
+    ctx.fillStyle = '#6a6a9a';
+    ctx.fillRect(x+5, y+35, 140, 4);
+    // Pillow
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(x+110, y+36, 35, 16);
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(x+112, y+38, 31, 10);
+    // Blanket
+    const bg = ctx.createLinearGradient(x, y+38, x+110, y+55);
+    bg.addColorStop(0, '#6a5acd');
+    bg.addColorStop(1, '#483d8b');
+    ctx.fillStyle = bg;
+    ctx.fillRect(x+5, y+40, 105, 15);
+    // Blanket fold
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(x+5, y+40, 105, 3);
+    // Blanket pattern
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let i=0; i<5; i++) {
+        ctx.fillRect(x+10+i*22, y+42, 10, 10);
+    }
+}
+
+function drawNightstand(x, y) {
+    ctx.fillStyle = '#4a3a2a';
+    ctx.fillRect(x, y, 40, 38);
+    ctx.fillStyle = '#5a4a3a';
+    ctx.fillRect(x+2, y+2, 36, 15);
+    ctx.fillRect(x+2, y+20, 36, 15);
+    // Knobs
+    ctx.fillStyle = '#888';
+    ctx.fillRect(x+18, y+8, 4, 4);
+    ctx.fillRect(x+18, y+25, 4, 4);
+    // Phone
+    ctx.fillStyle = '#111';
+    ctx.fillRect(x+10, y-14, 20, 36);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x+10, y-14, 20, 2);
+    // Phone screen
+    const glow = Math.sin(anim*0.08)*0.3+0.7;
+    ctx.fillStyle = `rgba(80,160,255,${glow})`;
+    ctx.fillRect(x+12, y-11, 16, 28);
+    // Notification dot
+    if (Math.sin(anim*0.1) > 0) {
+        ctx.fillStyle = '#f44';
+        ctx.beginPath();
+        ctx.arc(x+26, y-8, 3, 0, Math.PI*2);
+        ctx.fill();
+    }
+    // Lamp
+    ctx.fillStyle = '#888';
+    ctx.fillRect(x+32, y-6, 4, 6);
+    ctx.fillStyle = '#aa9';
+    ctx.fillRect(x+27, y-18, 14, 14);
+    ctx.fillStyle = '#ccb';
+    ctx.fillRect(x+29, y-16, 10, 10);
+}
+
+// ===== CITY BACKGROUND (MENU) =====
+function drawCityBg() {
+    // Sky gradient
+    const sg = ctx.createLinearGradient(0,0,0,GH);
+    sg.addColorStop(0,'#050510');
+    sg.addColorStop(0.4,'#0a0a2a');
+    sg.addColorStop(0.8,'#1a1a4a');
+    sg.addColorStop(1,'#2a1a3a');
+    ctx.fillStyle = sg;
+    ctx.fillRect(0,0,GW,GH);
+    
+    // Stars
+    for (let i=0; i<80; i++) {
+        const sx=(i*97+anim*0.05)%GW;
+        const sy=(i*43)%(GH*0.4);
+        ctx.globalAlpha = Math.sin(anim*0.04+i)*0.4+0.5;
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 2);
+    }
+    ctx.globalAlpha=1;
+    
+    // Far buildings
+    ctx.fillStyle = '#0a0a2a';
+    for (let i=0; i<25; i++) {
+        const bx = (i*42-anim*0.15)%(GW+50)-25;
+        const bh = 60+(i*23)%80;
+        ctx.fillRect(bx, GH-bh-40, 35, bh);
+    }
+    
+    // Mid buildings
+    for (let i=0; i<18; i++) {
+        const bx = (i*55-anim*0.4)%(GW+60)-30;
+        const bh = 90+(i*31)%90;
+        ctx.fillStyle = '#151530';
+        ctx.fillRect(bx, GH-bh-25, 45, bh);
+        // Windows
+        for (let wy=0; wy<Math.floor(bh/16); wy++) {
+            for (let wx=0; wx<3; wx++) {
+                if (Math.sin(i*7+wx*3+wy*5+anim*0.015)>0.25) {
+                    ctx.fillStyle = `hsl(${40+Math.sin(i+wx)*20},80%,65%)`;
+                    ctx.fillRect(bx+6+wx*13, GH-bh-15+wy*16, 5, 7);
+                    ctx.fillStyle = '#151530';
+                }
+            }
+        }
+    }
+    
+    // Near buildings with neon
+    for (let i=0; i<12; i++) {
+        const bx = (i*75-anim*0.8)%(GW+80)-40;
+        const bh = 110+(i*37)%110;
+        ctx.fillStyle = '#1a1a3a';
+        ctx.fillRect(bx, GH-bh, 60, bh);
+        // Rooftop detail
+        ctx.fillStyle = '#252545';
+        ctx.fillRect(bx+5, GH-bh-5, 50, 8);
+        // Neon signs
+        if (i%3===0) {
+            const nc = PALETTE.neon[i%4];
+            ctx.shadowColor = nc;
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = nc;
+            ctx.fillRect(bx+8, GH-bh+15, 44, 12);
+            ctx.shadowBlur = 0;
+            pxText(['BAR','SHOP','CAFE','NFT'][i%4], bx+30, GH-bh+24, 6, '#fff', 'center');
+        }
+        // Door
+        ctx.fillStyle = '#111';
+        ctx.fillRect(bx+20, GH-22, 20, 22);
+        ctx.fillStyle = '#332';
+        ctx.fillRect(bx+28, GH-12, 4, 4);
+    }
+    
+    // Street
+    ctx.fillStyle = '#0a0a18';
+    ctx.fillRect(0, GH-22, GW, 22);
+    // Road line
+    ctx.fillStyle = '#333';
+    for (let i=0; i<GW; i+=30) {
+        ctx.fillRect(i, GH-12, 15, 2);
+    }
+    
+    // Puddle reflections
+    ctx.fillStyle = 'rgba(60,80,150,0.2)';
+    for (let i=0; i<4; i++) {
+        const px = (i*170+60)%GW;
+        ctx.beginPath();
+        ctx.ellipse(px, GH-8, 35, 6, 0, 0, Math.PI*2);
+        ctx.fill();
+    }
+    
+    // Matrix rain
+    ctx.fillStyle = '#0f0';
+    ctx.globalAlpha = 0.3;
+    ctx.font = '8px "Press Start 2P"';
+    for (let i=0; i<20; i++) {
+        const px = (i*43+anim*0.3)%GW;
+        const py = (i*67+anim*2.5)%GH;
+        ctx.fillText(String.fromCharCode(48+(i%10)), px, py);
+    }
+    ctx.globalAlpha = 1;
+}
+
+// ===== UI FUNCTIONS =====
+function showDialog(speaker, text, dialogChoices=[], onComplete=null) {
+    const box = document.getElementById('dialogBox');
+    const nameEl = document.getElementById('speakerName');
+    const textEl = document.getElementById('dialogText');
+    const choicesEl = document.getElementById('dialogChoices');
+    
+    nameEl.textContent = speaker;
+    textEl.textContent = '';
+    choicesEl.innerHTML = '';
+    box.classList.add('show');
+    
+    if (typewriterInterval) clearInterval(typewriterInterval);
+    let ci = 0;
+    typewriterInterval = setInterval(() => {
+        if (ci < text.length) {
+            textEl.textContent += text[ci];
+            if (ci % 2 === 0) playSFX('typing');
+            ci++;
+        } else {
+            clearInterval(typewriterInterval);
+            typewriterInterval = null;
+            if (dialogChoices.length > 0) {
+                dialogChoices.forEach(ch => {
+                    const btn = document.createElement('button');
+                    btn.className = 'choice-btn';
+                    btn.textContent = '> ' + ch.text;
+                    btn.onclick = () => { playSFX('click'); box.classList.remove('show'); if(ch.action) ch.action(); };
+                    choicesEl.appendChild(btn);
+                });
+            } else {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn';
+                btn.textContent = '[ Продолжить ]';
+                btn.onclick = () => { playSFX('click'); box.classList.remove('show'); if(onComplete) onComplete(); else advanceScene(); };
+                choicesEl.appendChild(btn);
+            }
+        }
+    }, 28);
+}
+
+function showNotif(html, dur=3000) {
+    const n = document.getElementById('notification');
+    n.innerHTML = html;
+    n.classList.add('show');
+    if (dur < 99999) setTimeout(()=>n.classList.remove('show'), dur);
+}
+
+function hideNotif() {
+    document.getElementById('notification').classList.remove('show');
+}
+
+function unlockAch(id) {
+    if (achievements.includes(id)) return;
+    achievements.push(id);
+    const a = ACHIEVEMENTS.find(x=>x.id===id);
+    if (!a) return;
+    playSFX('achievement');
+    const p = document.getElementById('achievementPopup');
+    p.innerHTML = `<div style="color:#ff0;margin-bottom:6px;">ДОСТИЖЕНИЕ!</div><div>${a.icon} ${a.name}</div><div style="font-size:7px;color:#8f8;margin-top:4px;">${a.desc}</div>`;
+    p.classList.add('show');
+    setTimeout(()=>p.classList.remove('show'), 4000);
+    saveGame();
+}
+
+function updateHUD() {
+    document.getElementById('hudMoney').textContent = '$' + money.toLocaleString();
+    document.getElementById('hudRep').textContent = 'REP ' + reputation;
+    document.getElementById('hudEnergy').textContent = 'EN ' + energy;
+}
+
+// ===== MINI-GAMES =====
+function startMinigame(type) {
+    minigameActive = true;
+    const ui = document.getElementById('minigameUI');
+    ui.style.display = 'block';
+    ui.innerHTML = '';
+    switch(type) {
+        case 'tachycardia': mgTachycardia(ui); break;
+        case 'platformer': mgPlatformer(ui); break;
+        case 'dealCheck': mgDealCheck(ui); break;
+        case 'findFake': mgFindFake(ui); break;
+        case 'interrogation': mgInterrogation(ui); break;
+        case 'rhythm': mgRhythm(ui); break;
+        case 'garden': mgGarden(ui); break;
+        case 'finalDupe': mgFinalDupe(ui); break;
+        case 'blockchain': mgBlockchain(ui); break;
+    }
+}
+
+function endMinigame(success, cb) {
+    minigameActive = false;
+    document.getElementById('minigameUI').style.display = 'none';
+    if (success) { playSFX('success'); showNotif('<div style="color:#8f8;font-size:14px;">УСПЕХ!</div>', 2000); }
+    else { playSFX('fail'); showNotif('<div style="color:#f88;font-size:14px;">ПРОВАЛ</div>', 2000); }
+    if (cb) setTimeout(cb, 2500);
+}
+
+function mgTachycardia(ui) {
+    let score=0, lives=3, canTap=false, total=12;
+    ui.innerHTML=`
+        <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <div style="color:#f44;font-size:10px;margin-bottom:20px;">МИНИ-ИГРА: ТАХИКАРДИЯ</div>
+            <div style="font-size:10px;color:#888;margin-bottom:10px;">Нажимайте когда сердце КРАСНОЕ</div>
+            <div id="mgLives" style="color:#f88;font-size:9px;margin-bottom:10px;">Жизни: III</div>
+            <div id="mgHeart" style="font-size:80px;transition:transform 0.1s;">&#x2764;&#xFE0F;</div>
+            <div id="mgEkg" style="width:300px;height:40px;border:2px solid #333;margin:20px 0;overflow:hidden;position:relative;">
+                <canvas id="ekgCanvas" width="300" height="40"></canvas>
+            </div>
+            <div id="mgScore" style="color:#8f8;font-size:10px;">0 / ${total}</div>
+            <button id="mgTapBtn" class="pixel-btn pixel-btn-red" style="margin-top:20px;padding:20px 50px;font-size:14px;">TAP!</button>
+        </div>`;
+    
+    const heart = document.getElementById('mgHeart');
+    const scoreEl = document.getElementById('mgScore');
+    const livesEl = document.getElementById('mgLives');
+    const tapBtn = document.getElementById('mgTapBtn');
+    const ekgC = document.getElementById('ekgCanvas');
+    const ekgCtx = ekgC.getContext('2d');
+    let ekgX = 0;
+    
+    function drawEkg() {
+        ekgCtx.fillStyle = 'rgba(0,0,0,0.1)';
+        ekgCtx.fillRect(0,0,300,40);
+        ekgCtx.fillStyle = canTap ? '#f44' : '#2a2a2a';
+        const yy = canTap ? 5+Math.random()*10 : 20;
+        ekgCtx.fillRect(ekgX, yy, 2, 3);
+        ekgX = (ekgX+2) % 300;
+        if (minigameActive) requestAnimationFrame(drawEkg);
+    }
+    drawEkg();
+    
+    const beatInt = setInterval(()=>{
+        if (!minigameActive) { clearInterval(beatInt); return; }
+        playSFX('heartbeat');
+        heart.style.transform = 'scale(1.4)';
+        heart.style.color = '#ff0000';
+        canTap = true;
+        setTimeout(()=>{
+            heart.style.transform = 'scale(1)';
+            canTap = false;
+        }, 400);
+    }, 900);
+    
+    tapBtn.onclick = () => {
+        if (canTap) {
+            score++;
+            scoreEl.textContent = `${score} / ${total}`;
+            tapBtn.style.borderColor = '#4a8a4a';
+            setTimeout(()=>tapBtn.style.borderColor='#8a3a3a', 100);
+            if (score >= total) {
+                clearInterval(beatInt);
+                unlockAch('tachycardia');
+                endMinigame(true, advanceScene);
+            }
+        } else {
+            lives--;
+            livesEl.textContent = 'Жизни: ' + 'I'.repeat(lives);
+            tapBtn.style.borderColor = '#888';
+            setTimeout(()=>tapBtn.style.borderColor='#8a3a3a', 100);
+            if (lives <= 0) {
+                clearInterval(beatInt);
+                endMinigame(false, ()=>startMinigame('tachycardia'));
+            }
+        }
+    };
+}
+
+function mgPlatformer(ui) {
+    const c2 = document.createElement('canvas');
+    c2.width=440; c2.height=280;
+    c2.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);border:3px solid #4a4a8a;image-rendering:pixelated;';
+    ui.appendChild(c2);
+    const c2x = c2.getContext('2d');
+    
+    const info = document.createElement('div');
+    info.style.cssText='position:absolute;top:8%;left:50%;transform:translateX(-50%);text-align:center;';
+    info.innerHTML='<div style="color:#8af;font-size:10px;margin-bottom:8px;">МИНИ-ИГРА: ПРЫГУН</div><div id="pScore" style="color:#fff;font-size:10px;">Очки: 0 | Цель: 25</div><div id="pLives" style="color:#f88;font-size:9px;margin-top:4px;">Жизни: III</div>';
+    ui.appendChild(info);
+    
+    let px=60, py=230, vy=0, sc=0, lives=3, obs=[], spd=4, go=false;
+    
+    function jump() { if(py>=220) vy=-11; }
+    c2.onclick = jump;
+    const kh = e=>{ if(e.code==='Space'&&minigameActive) { e.preventDefault(); jump(); }};
+    document.addEventListener('keydown', kh);
+    
+    function loop() {
+        if(!minigameActive||go) { document.removeEventListener('keydown',kh); return; }
+        c2x.fillStyle='#0a0a1a';
+        c2x.fillRect(0,0,440,280);
+        // Ground
+        c2x.fillStyle='#2a2a3a';
+        c2x.fillRect(0,250,440,30);
+        c2x.fillStyle='#333';
+        for(let i=0;i<440;i+=20) c2x.fillRect(i,250,1,30);
+        // Ground detail
+        c2x.fillStyle='#353545';
+        c2x.fillRect(0,250,440,3);
+        
+        vy+=0.7; py+=vy;
+        if(py>230){py=230;vy=0;}
+        
+        // Player
+        c2x.fillStyle='#4a9fff';
+        c2x.fillRect(px, py, 18, 18);
+        c2x.fillStyle='#6abfff';
+        c2x.fillRect(px+2, py+2, 6, 6);
+        // Eyes
+        c2x.fillStyle='#fff';
+        c2x.fillRect(px+10, py+5, 4, 4);
+        c2x.fillRect(px+12, py+6, 2, 2);
+        
+        if(Math.random()<0.025+sc*0.001) {
+            obs.push({x:440, h:18+Math.random()*28, w:14+Math.random()*10});
+        }
+        
+        for(let i=obs.length-1;i>=0;i--){
+            const o=obs[i];
+            o.x-=spd;
+            c2x.fillStyle='#e74c3c';
+            c2x.fillRect(o.x, 250-o.h, o.w, o.h);
+            c2x.fillStyle='#c0392b';
+            c2x.fillRect(o.x+2, 250-o.h+2, o.w-4, 4);
+            // Spikes on top
+            c2x.fillStyle='#ff6b6b';
+            for(let s=0;s<o.w;s+=6) c2x.fillRect(o.x+s+1,250-o.h-3,4,3);
+            
+            if(o.x<px+18&&o.x+o.w>px&&py+18>250-o.h) {
+                lives--;
+                document.getElementById('pLives').textContent='Жизни: '+'I'.repeat(Math.max(0,lives));
+                obs.splice(i,1);
+                if(lives<=0){go=true;endMinigame(sc>=25,advanceScene);return;}
+                continue;
+            }
+            if(o.x+o.w<px&&!o.scored){o.scored=true;sc++;spd=4+sc*0.1;}
+            if(o.x<-30) obs.splice(i,1);
+        }
+        
+        document.getElementById('pScore').textContent=`Очки: ${sc} | Цель: 25`;
+        if(sc>=25){go=true;endMinigame(true,advanceScene);return;}
+        requestAnimationFrame(loop);
+    }
+    loop();
+}
+
+function mgDealCheck(ui) {
+    const checks=[
+        {name:'Проверить подлинность предмета',done:false},
+        {name:'Проверить историю продавца',done:false},
+        {name:'Сверить рыночную стоимость',done:false},
+        {name:'Подтвердить согласие сторон',done:false}
+    ];
+    let time=45;
+    
+    ui.innerHTML=`
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#0a0a1a;padding:28px;border:3px solid #4a4a8a;max-width:500px;width:90%;">
+            <div style="color:#8af;font-size:11px;text-align:center;margin-bottom:16px;">ПРОВЕРКА СДЕЛКИ</div>
+            <div style="color:#999;font-size:8px;line-height:2;margin-bottom:12px;">
+                Покупатель: xX_DarkLord_Xx<br>
+                Продавец: CoolTrader99<br>
+                Предмет: Dominus Praefectus<br>
+                Цена: 50,000 робаксов
+            </div>
+            <div id="mgChecklist" style="display:flex;flex-direction:column;gap:8px;"></div>
+            <div id="mgTimer" style="color:#ff8;font-size:10px;text-align:center;margin-top:16px;">Время: ${time}с</div>
+        </div>`;
+    
+    const cl = document.getElementById('mgChecklist');
+    checks.forEach((c,i) => {
+        const b = document.createElement('button');
+        b.className = 'choice-btn';
+        b.innerHTML = '[ ] ' + c.name;
+        b.onclick = () => {
+            if(!c.done){
+                c.done=true;
+                b.innerHTML = '[X] ' + c.name;
+                b.style.borderColor='#4a8a4a';
+                b.style.color='#8f8';
+                playSFX('click');
+                if(checks.every(x=>x.done)){
+                    clearInterval(ti);
+                    money+=5; reputation+=10; updateHUD();
+                    unlockAch('firstDeal');
+                    endMinigame(true, advanceScene);
+                }
+            }
+        };
+        cl.appendChild(b);
+    });
+    
+    const ti = setInterval(()=>{
+        if(!minigameActive){clearInterval(ti);return;}
+        time--;
+        document.getElementById('mgTimer').textContent = `Время: ${time}с`;
+        if(time<=10) document.getElementById('mgTimer').style.color='#f44';
+        if(time<=0){clearInterval(ti);endMinigame(false,()=>startMinigame('dealCheck'));}
+    },1000);
+}
+
+function mgFindFake(ui) {
+    const items=['Dominus','Valkyrie Helm','Sparkle Time','Clockwork','Void Star'];
+    let round=0, lives=3, total=5;
+    
+    function showRound() {
+        if (round >= total) {
+            reputation+=15; updateHUD();
+            endMinigame(true, advanceScene);
+            return;
+        }
+        const fakeLeft = Math.random()>0.5;
+        const item = items[round];
+        const fakeItem = item.slice(0,-1) + (Math.random()>0.5?'z':'s');
+        const realPrice = 3000+Math.floor(Math.random()*5000);
+        const fakePrice = Math.floor(realPrice*0.15);
+        
+        ui.innerHTML=`
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
+                <div style="color:#8af;font-size:10px;margin-bottom:8px;">НАЙДИ ПОДДЕЛКУ (${round+1}/${total})</div>
+                <div style="color:#f88;font-size:9px;margin-bottom:20px;">Жизни: ${'I'.repeat(lives)}</div>
+                <div style="display:flex;gap:30px;justify-content:center;">
+                    <div id="optA" class="pixel-btn" style="padding:20px;cursor:pointer;min-width:140px;">
+                        <div style="font-size:28px;margin-bottom:8px;">&#x1F451;</div>
+                        <div style="font-size:9px;margin-bottom:4px;">${fakeLeft?fakeItem:item}</div>
+                        <div style="color:${fakeLeft?'#f55':'#8f8'};font-size:8px;">$${fakeLeft?fakePrice:realPrice}</div>
+                    </div>
+                    <div id="optB" class="pixel-btn" style="padding:20px;cursor:pointer;min-width:140px;">
+                        <div style="font-size:28px;margin-bottom:8px;">&#x1F451;</div>
+                        <div style="font-size:9px;margin-bottom:4px;">${fakeLeft?item:fakeItem}</div>
+                        <div style="color:${fakeLeft?'#8f8':'#f55'};font-size:8px;">$${fakeLeft?realPrice:fakePrice}</div>
+                    </div>
+                </div>
+                <div style="color:#888;font-size:8px;margin-top:16px;">Нажмите на ПОДДЕЛКУ</div>
+            </div>`;
+        
+        document.getElementById('optA').onclick=()=>check(fakeLeft);
+        document.getElementById('optB').onclick=()=>check(!fakeLeft);
+    }
+    
+    function check(correct) {
+        if(correct) {
+            round++; playSFX('success');
+            showRound();
+        } else {
+            lives--; playSFX('fail');
+            if(lives<=0) endMinigame(false, ()=>startMinigame('findFake'));
+            else showRound();
+        }
+    }
+    showRound();
+}
+
+function mgInterrogation(ui) {
+    const lies=[
+        {text:'Выбил из ивента прошлым летом',hint:'Этот ивент был ЗИМОЙ!',found:false},
+        {text:'Просто нужны деньги срочно',hint:'Он же платит ВЫШЕ рынка!',found:false},
+        {text:'Скрин не грузится, давай быстрее',hint:'Давление на скорость = RED FLAG!',found:false}
+    ];
+    const truths=[
+        {text:'Играю уже 3 года',isLie:false},
+        {text:'Могу показать аккаунт',isLie:false}
+    ];
+    let found=0, mistakes=0;
+    
+    ui.innerHTML=`
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#0a0a1a;padding:24px;border:3px solid #4a4a8a;max-width:520px;width:92%;">
+            <div style="color:#f55;font-size:10px;text-align:center;margin-bottom:12px;">ДОПРОС СКАМЕРА</div>
+            <div style="color:#888;font-size:8px;margin-bottom:12px;line-height:2;">Найди 3 ЛЖИ в ответах TotallyLegit_Trader.<br>Осторожно: ошибки стоят репутации!</div>
+            <div id="mgChat" style="background:#111;padding:12px;max-height:200px;overflow-y:auto;border:2px solid #222;"></div>
+            <div id="mgFound" style="color:#8f8;font-size:9px;text-align:center;margin-top:12px;">Ложь: 0/3 | Ошибки: ${mistakes}/2</div>
+        </div>`;
+    
+    const chat = document.getElementById('mgChat');
+    const allMsgs = [...lies.map(l=>({...l,isLie:true})), ...truths];
+    // Shuffle
+    allMsgs.sort(()=>Math.random()-0.5);
+    
+    allMsgs.forEach(msg => {
+        const div = document.createElement('div');
+        div.style.cssText='padding:8px;margin:6px 0;background:rgba(80,40,40,0.2);border:2px solid transparent;cursor:pointer;font-size:8px;line-height:2;';
+        div.innerHTML=`<span style="color:#f88;">[TotallyLegit]:</span> <span style="color:#ccc;">${msg.text}</span>`;
+        div.onclick=()=>{
+            if(div.dataset.done) return;
+            div.dataset.done='1';
+            if(msg.isLie) {
+                found++;
+                div.style.borderColor='#f55';
+                div.innerHTML+=`<br><span style="color:#ff8;font-size:7px;">! ${msg.hint}</span>`;
+                playSFX('success');
+            } else {
+                mistakes++;
+                div.style.borderColor='#888';
+                div.innerHTML+=`<br><span style="color:#888;font-size:7px;">Это была правда...</span>`;
+                playSFX('fail');
+            }
+            document.getElementById('mgFound').textContent=`Ложь: ${found}/3 | Ошибки: ${mistakes}/2`;
+            if(mistakes>=2){endMinigame(false,()=>startMinigame('interrogation'));return;}
+            if(found>=3){reputation+=20;updateHUD();unlockAch('catchScam');setTimeout(()=>endMinigame(true,advanceScene),800);}
+        };
+        chat.appendChild(div);
+    });
+}
+
+function mgRhythm(ui) {
+    const seq=['<','>', 'v','O','O','<','<'];
+    let cur=0, combo=0, lives=3;
+    
+    ui.innerHTML=`
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
+            <div style="color:#0ff;font-size:10px;margin-bottom:14px;">ПОСЛЕДОВАТЕЛЬНОСТЬ ДЮПА</div>
+            <div style="color:#f88;font-size:9px;margin-bottom:10px;" id="rLives">Жизни: III</div>
+            <div id="rSeq" style="font-size:16px;color:#555;letter-spacing:12px;margin-bottom:20px;">${seq.join(' ')}</div>
+            <div id="rCur" style="font-size:40px;color:#0ff;margin-bottom:24px;text-shadow:0 0 15px #0ff;">${seq[0]}</div>
+            <div style="display:flex;gap:12px;justify-content:center;">
+                <button class="pixel-btn r-btn" data-d="<" style="font-size:18px;padding:16px 22px;"><</button>
+                <button class="pixel-btn r-btn" data-d="v" style="font-size:18px;padding:16px 22px;">v</button>
+                <button class="pixel-btn r-btn" data-d="O" style="font-size:18px;padding:16px 22px;">O</button>
+                <button class="pixel-btn r-btn" data-d=">" style="font-size:18px;padding:16px 22px;">></button>
+            </div>
+            <div id="rCombo" style="color:#8f8;font-size:9px;margin-top:16px;">Комбо: 0</div>
+        </div>`;
+    
+    document.querySelectorAll('.r-btn').forEach(b=>{
+        b.onclick=()=>{
+            if(b.dataset.d===seq[cur]){
+                combo++; cur++;
+                b.style.borderColor='#0ff'; setTimeout(()=>b.style.borderColor='#5a5a9a',80);
+                playSFX('click');
+                document.getElementById('rCombo').textContent=`Комбо: ${combo}`;
+                if(cur>=seq.length){unlockAch('dupeMaster');money+=10;updateHUD();endMinigame(true,advanceScene);}
+                else document.getElementById('rCur').textContent=seq[cur];
+            } else {
+                lives--; combo=0; cur=0;
+                document.getElementById('rLives').textContent='Жизни: '+'I'.repeat(Math.max(0,lives));
+                document.getElementById('rCombo').textContent='Комбо: 0';
+                document.getElementById('rCur').textContent=seq[0];
+                b.style.borderColor='#f44'; setTimeout(()=>b.style.borderColor='#5a5a9a',80);
+                playSFX('fail');
+                if(lives<=0) endMinigame(false,()=>startMinigame('rhythm'));
+            }
+        };
+    });
+}
+
+function mgGarden(ui) {
+    const plants=[
+        {name:'Rainbow Flower',val:50,diff:4,emoji:'[RBW]'},
+        {name:'Golden Seed',val:100,diff:6,emoji:'[GLD]'},
+        {name:'Diamond Plant',val:200,diff:8,emoji:'[DIA]'}
+    ];
+    let total=0, combo=0, goal=800, lives=5;
+    
+    ui.innerHTML=`
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
+            <div style="color:#0f0;font-size:10px;margin-bottom:12px;">GROW A GARDEN - ДЮПИНГ</div>
+            <div style="color:#ff0;font-size:12px;margin-bottom:6px;" id="gMoney">$0 / $${goal}</div>
+            <div style="color:#8f8;font-size:9px;margin-bottom:6px;" id="gCombo">Комбо: x1.0</div>
+            <div style="color:#f88;font-size:9px;margin-bottom:16px;" id="gLives">Жизни: IIIII</div>
+            <div id="gBtns" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>`;
+    
+    const btns = document.getElementById('gBtns');
+    plants.forEach(p=>{
+        const b = document.createElement('button');
+        b.className = 'pixel-btn pixel-btn-green';
+        b.style.fontSize='9px';
+        b.textContent = `${p.emoji} ${p.name} - $${p.val}`;
+        b.onclick=()=>{
+            const roll = Math.random()*10;
+            if(roll < (10-p.diff+Math.min(combo,3))) {
+                combo++;
+                const mult = Math.min(1+combo*0.4, 4);
+                const earned = Math.floor(p.val*mult);
+                total+=earned; money+=earned; updateHUD();
+                document.getElementById('gMoney').textContent=`$${total} / $${goal}`;
+                document.getElementById('gCombo').textContent=`Комбо: x${mult.toFixed(1)}`;
+                playSFX('money');
+                spawnParticles(320,200,'money',5);
+                if(total>=goal){unlockAch('gardener');endMinigame(true,advanceScene);}
+            } else {
+                combo=0; lives--;
+                document.getElementById('gCombo').textContent='Комбо: x1.0';
+                document.getElementById('gLives').textContent='Жизни: '+'I'.repeat(Math.max(0,lives));
+                playSFX('fail');
+                if(lives<=0) endMinigame(false,()=>startMinigame('garden'));
+            }
+        };
+        btns.appendChild(b);
+    });
+}
+
+function mgFinalDupe(ui) {
+    const seq=['<','>','v','O','<','>','v','O','<','<','>','>','O','O','O'];
+    let cur=0, time=40, lives=3;
+    
+    ui.innerHTML=`
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;width:90%;max-width:550px;">
+            <div style="color:#f0f;font-size:11px;margin-bottom:8px;text-shadow:0 0 15px #f0f;">MYTHIC BLOOM - ФИНАЛЬНЫЙ ДЮП</div>
+            <div style="color:#ff0;font-size:10px;margin-bottom:6px;" id="fdTimer">${time}с</div>
+            <div style="color:#f88;font-size:9px;margin-bottom:10px;" id="fdLives">Жизни: III</div>
+            <div id="fdSeq" style="font-size:12px;color:#555;letter-spacing:6px;margin-bottom:14px;word-wrap:break-word;">${seq.join(' ')}</div>
+            <div id="fdCur" style="font-size:50px;color:#f0f;margin-bottom:20px;text-shadow:0 0 25px #f0f;">${seq[0]}</div>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                <button class="pixel-btn fd-btn" data-d="<" style="font-size:22px;padding:18px 24px;border-color:#808;"><</button>
+                <button class="pixel-btn fd-btn" data-d="v" style="font-size:22px;padding:18px 24px;border-color:#808;">v</button>
+                <button class="pixel-btn fd-btn" data-d="O" style="font-size:22px;padding:18px 24px;border-color:#808;">O</button>
+                <button class="pixel-btn fd-btn" data-d=">" style="font-size:22px;padding:18px 24px;border-color:#808;">></button>
+            </div>
+            <div id="fdProg" style="color:#8f8;font-size:9px;margin-top:14px;">0 / ${seq.length}</div>
+        </div>`;
+    
+    const ti = setInterval(()=>{
+        if(!minigameActive){clearInterval(ti);return;}
+        time--;
+        document.getElementById('fdTimer').textContent=time+'с';
+        if(time<=10) document.getElementById('fdTimer').style.color='#f44';
+        if(time<=0){
+            clearInterval(ti);
+            endMinigame(false,()=>{
+                storyFlags.badEnding=true;
+                scene='bad_ending';
+                advanceScene();
+            });
+        }
+    },1000);
+    
+    document.querySelectorAll('.fd-btn').forEach(b=>{
+        b.onclick=()=>{
+            if(b.dataset.d===seq[cur]){
+                cur++;
+                document.getElementById('fdProg').textContent=`${cur} / ${seq.length}`;
+                b.style.background='#404';b.style.boxShadow='0 0 20px #f0f';
+                setTimeout(()=>{b.style.background='';b.style.boxShadow='';},80);
+                playSFX('click');
+                if(cur>=seq.length){
+                    clearInterval(ti);
+                    money=200000; updateHUD();
+                    unlockAch('club200k');
+                    spawnParticles(320,180,'confetti',40);
+                    showNotif('<div style="color:#ff0;font-size:16px;text-shadow:0 0 20px #ff0;">$200,000!</div><div style="margin-top:10px;font-size:9px;">МЫ СДЕЛАЛИ ЭТО!</div>',4500);
+                    setTimeout(()=>endMinigame(true,advanceScene),5000);
+                } else {
+                    document.getElementById('fdCur').textContent=seq[cur];
+                }
+            } else {
+                lives--;
+                document.getElementById('fdLives').textContent='Жизни: '+'I'.repeat(Math.max(0,lives));
+                cur=Math.max(0,cur-2);
+                document.getElementById('fdProg').textContent=`${cur} / ${seq.length}`;
+                document.getElementById('fdCur').textContent=seq[cur];
+                b.style.background='#400';setTimeout(()=>b.style.background='',80);
+                playSFX('fail');
+                if(lives<=0){
+                    clearInterval(ti);
+                    endMinigame(false,()=>startMinigame('finalDupe'));
+                }
+            }
+        };
+    });
+}
+
+function mgBlockchain(ui) {
+    let recovered=0;
+    const total=127;
+    const nodes=[];
+    for(let i=0;i<15;i++){
+        nodes.push({
+            x:40+(i%5)*100, y:40+Math.floor(i/5)*80,
+            hasGems:Math.random()>0.35, checked:false
+        });
+    }
+    let time=60;
+    
+    ui.innerHTML=`
+        <div style="position:absolute;top:6%;left:50%;transform:translateX(-50%);text-align:center;">
+            <div style="color:#0af;font-size:10px;">ОТСЛЕЖИВАНИЕ БЛОКЧЕЙНА</div>
+            <div style="color:#8f8;font-size:9px;margin-top:6px;">Восстановлено: <span id="bcRec">0</span>/${total}</div>
+            <div style="color:#ff8;font-size:9px;margin-top:4px;" id="bcTime">Время: ${time}с</div>
+        </div>
+        <canvas id="bcCanvas" width="520" height="260" style="position:absolute;top:28%;left:50%;transform:translateX(-50%);image-rendering:pixelated;"></canvas>`;
+    
+    const bc=document.getElementById('bcCanvas');
+    const bx=bc.getContext('2d');
+    
+    const ti=setInterval(()=>{
+        if(!minigameActive){clearInterval(ti);return;}
+        time--;
+        document.getElementById('bcTime').textContent=`Время: ${time}с`;
+        if(time<=0){clearInterval(ti);endMinigame(recovered>80,advanceScene);}
+    },1000);
+    
+    function draw(){
+        bx.fillStyle='#060612';
+        bx.fillRect(0,0,520,260);
+        // Connections
+        bx.strokeStyle='#1a2a4a';bx.lineWidth=2;
+        for(let i=0;i<nodes.length-1;i++){
+            bx.beginPath();bx.moveTo(nodes[i].x,nodes[i].y);bx.lineTo(nodes[i+1].x,nodes[i+1].y);bx.stroke();
+            if(i+5<nodes.length){bx.beginPath();bx.moveTo(nodes[i].x,nodes[i].y);bx.lineTo(nodes[i+5].x,nodes[i+5].y);bx.stroke();}
+        }
+        // Nodes
+        nodes.forEach(n=>{
+            bx.fillStyle=n.checked?(n.hasGems?'#2a8a2a':'#8a2a2a'):'#2a2a4a';
+            bx.fillRect(n.x-18,n.y-18,36,36);
+            bx.strokeStyle=n.checked?'#fff':'#4a4a8a';
+            bx.strokeRect(n.x-18,n.y-18,36,36);
+            if(n.checked&&n.hasGems){
+                bx.fillStyle='#0ff';
+                bx.font='12px "Press Start 2P"';
+                bx.textAlign='center';
+                bx.fillText('GEM',n.x,n.y+4);
+                bx.textAlign='left';
+            }
+            if(!n.checked){
+                bx.fillStyle='#555';
+                bx.font='8px "Press Start 2P"';
+                bx.textAlign='center';
+                bx.fillText('???',n.x,n.y+3);
+                bx.textAlign='left';
+            }
+        });
+    }
+    draw();
+    
+    bc.onclick=e=>{
+        const r=bc.getBoundingClientRect();
+        const mx=(e.clientX-r.left)*(bc.width/r.width);
+        const my=(e.clientY-r.top)*(bc.height/r.height);
+        nodes.forEach(n=>{
+            if(Math.abs(mx-n.x)<18&&Math.abs(my-n.y)<18&&!n.checked){
+                n.checked=true;
+                if(n.hasGems){
+                    const amt=8+Math.floor(Math.random()*15);
+                    recovered+=amt;
+                    document.getElementById('bcRec').textContent=Math.min(recovered,total);
+                    playSFX('money');
+                } else playSFX('fail');
+                draw();
+                if(nodes.every(x=>x.checked)){
+                    clearInterval(ti);
+                    unlockAch('community');
+                    endMinigame(true,advanceScene);
+                }
+            }
+        });
+    };
+}
+
+// ===== SCENE SYSTEM =====
+const S = {};
+
+// --- CHAPTER 1 ---
+S['1_1'] = {
+    draw: () => { drawRoom('morning'); drawCharacter('tricky',280,170,'idle',anim); },
+    enter: () => {
+        showDialog('[Tricky]','Ещё один день... Сердце снова колотится как бешеное. Каждое утро одно и то же. Встаю, и сразу чувствую это давление в груди.',[
+            {text:'Попробовать успокоиться', action:()=>startMinigame('tachycardia')}
+        ]);
+    }
+};
+S['1_2'] = {
+    draw: () => { drawRoom('morning'); drawCharacter('tricky',280,170,'idle',anim); },
+    enter: () => {
+        showDialog('[Телефон]','Экран загорается. Сообщение от "Мама". Ты чувствуешь вибрацию в руке.',[], ()=>{
+            showDialog('[Мама]','Ты сегодня пойдёшь в школу? Уже 8:30, все уехали.',[
+                {text:'"Мне плохо..."', action:()=>{
+                    skipSchoolCount++;
+                    storyFlags.skipSchool = (storyFlags.skipSchool||0)+1;
+                    if(storyFlags.skipSchool>=3) unlockAch('skipSchool');
+                    choices.push('skip_school');
+                    showDialog('[Мама]','Опять? Ладно, отдыхай, солнышко. Я приеду вечером. Суп в холодильнике.',[], advanceScene);
+                }},
+                {text:'"Да, собираюсь"', action:()=>{
+                    choices.push('try_school');
+                    showDialog('[Tricky]','Я оделся и вышел. Но на полпути к остановке... Сердце снова. Тахикардия. Пришлось вернуться. Мама позвонила: "Я так и знала. Отдыхай."',[], advanceScene);
+                }},
+                {text:'"..." (игнорировать)', action:()=>{
+                    choices.push('ignore_mom');
+                    showDialog('[Tricky]','Сбрасываю вызов. Не хочу объяснять... Она всё равно не поймёт.',[], advanceScene);
+                }}
+            ]);
+        });
+    }
+};
+S['1_3'] = {
+    draw: () => {
+        drawRoom('day');
+        drawCharacter('tricky',280,170,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Tricky]','Дома один. Тишина давит. Можно пошариться по комнате... Или сразу за комп.',[], ()=>{
+            showDialog('[Tricky]','Смотрю в окно. Дети с рюкзаками идут в школу. Смеются, толкаются... Они даже не замечают, что меня нет.',[
+                {text:'Проверить телефон', action:()=>{
+                    showDialog('[Групповой чат класса]','"Где опять Tricky?" - "Опять болеет наверн" - "F" - "Ему пофиг на школу"',[
+                        {text:'Прочитать и расстроиться', action:()=>{
+                            showDialog('[Tricky]','Они думают, что мне всё равно... Если бы они знали.',[], advanceScene);
+                        }},
+                        {text:'Замьютить чат', action:()=>{
+                            showDialog('[Tricky]','Мне это не нужно сейчас. Убираю телефон.',[], advanceScene);
+                        }},
+                        {text:'Написать "Я в порядке"', action:()=>{
+                            showDialog('[Чат]','"Ну давай, выздоравливай" - И всё. Тишина.',[], advanceScene);
+                        }}
+                    ]);
+                }},
+                {text:'Сесть за компьютер', action:advanceScene}
+            ]);
+        });
+    }
+};
+S['1_4'] = {
+    draw: () => {
+        drawRoom('day');
+        drawCharacter('tricky',100,175,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Tricky]','Может, глянуть что-нибудь в интернете... Убить время. Включаю какую-то игру.',[
+            {text:'Играть', action:()=>startMinigame('platformer')}
+        ]);
+    }
+};
+S['1_5'] = {
+    draw: () => {
+        drawRoom('evening');
+        drawCharacter('tricky',100,175,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Tricky]','Вечер. Свет монитора. Листаю страницы... И нахожу что-то интересное.',[], ()=>{
+            showDialog('[Tricky]','Торговое сообщество Roblox... Гаранты... Лимитки... Робаксы... Люди реально на этом зарабатывают?',[], ()=>{
+                showDialog('[Tricky]','Гарант-сервис: безопасные сделки, комиссия 5%. Это... интересно. Я бы мог так делать. Сидеть дома и зарабатывать.',[
+                    {text:'"Я могу это делать!"', action:()=>{
+                        choices.push('confident');
+                        showDialog('[Tricky]','Решено. Я попробую. Что мне терять?',[], ()=>{
+                            chapter=2; scene=0;
+                            unlockAch('chapter1');
+                            showChapterCard('ГЛАВА 1 ЗАВЕРШЕНА','Просто Жизнь', advanceScene);
+                        });
+                    }},
+                    {text:'"Выглядит мутно... но интересно"', action:()=>{
+                        choices.push('cautious');
+                        showDialog('[Tricky]','Надо изучить побольше... Но что-то в этом есть.',[], ()=>{
+                            chapter=2; scene=0;
+                            unlockAch('chapter1');
+                            showChapterCard('ГЛАВА 1 ЗАВЕРШЕНА','Просто Жизнь', advanceScene);
+                        });
+                    }}
+                ]);
+            });
+        });
+    }
+};
+
+// --- CHAPTER 2 ---
+S['2_1'] = {
+    draw: () => {
+        drawRoom('day', false);
+        drawCharacter('tricky',50,175,'idle',anim);
+    },
+    enter: () => {
+        document.getElementById('hud').style.display='flex';
+        updateHUD();
+        showDialog('[Туториал]','Как работает гарант:\n1. Покупатель хочет товар\n2. Продавец имеет товар\n3. Гарант проверяет обе стороны\n4. Сделка завершается безопасно\n5. Гарант получает комиссию!',[
+            {text:'Понятно! Начать работу', action:advanceScene}
+        ]);
+    }
+};
+S['2_2'] = {
+    draw: () => {
+        drawRoom('day', false);
+        drawCharacter('tricky',50,175,'idle',anim);
+        drawCharacter('darkLord',450,190,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[xX_DarkLord_Xx]','Прив! Мне нужен гарант на сделку. 50К робаксов за лимитку Dominus. Справишься?',[
+            {text:'Проверить сделку', action:()=>startMinigame('dealCheck')}
+        ]);
+    }
+};
+S['2_3'] = {
+    draw: () => {
+        drawRoom('day', false);
+        drawCharacter('tricky',50,175,'happy',anim);
+    },
+    enter: () => {
+        showDialog('[xX_DarkLord_Xx]','Спасибо, братан! Оставлю отзыв. Ты реально шаришь!',[], ()=>{
+            showDialog('[Tricky]','Первая сделка... Первые деньги. Это работает. Это РЕАЛЬНО работает.',[], advanceScene);
+        });
+    }
+};
+S['2_4'] = {
+    draw: () => {
+        drawRoom('day', false);
+        drawCharacter('tricky',50,175,'idle',anim);
+        drawCharacter('flowerGirl',440,190,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[FlowerGirl2015]','Хочу обменять редкого питомца на лимитку! Поможешь? Только я боюсь, что меня обманут...',[
+            {text:'Проверить предметы', action:()=>startMinigame('findFake')}
+        ]);
+    }
+};
+S['2_5'] = {
+    draw: () => {
+        drawRoom('day', false);
+        drawCharacter('tricky',50,175,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[FlowerGirl2015]','Подожди, так это был фейк?!',[
+            {text:'"Да, я заметил. Будь осторожнее."', action:()=>{
+                reputation+=5;updateHUD();
+                showDialog('[FlowerGirl2015]','Спасибо огромное!!! Ты лучший гарант!',[], advanceScene);
+            }},
+            {text:'"Проверяй внимательнее в следующий раз."', action:()=>{
+                showDialog('[FlowerGirl2015]','Ладно...',[], advanceScene);
+            }}
+        ]);
+    }
+};
+S['2_6'] = {
+    draw: () => {
+        drawRoom('evening', false);
+        drawCharacter('tricky',50,175,'idle',anim);
+        drawCharacter('scammer',440,190,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[TotallyLegit_Trader]','Срочная сделка! Плачу выше рынка, надо быстро! Не тяни, окей?',[
+            {text:'Что-то подозрительно...', action:()=>startMinigame('interrogation')}
+        ]);
+    }
+};
+S['2_7'] = {
+    draw: () => {
+        ctx.fillStyle='#0a0a1a';ctx.fillRect(0,0,GW,GH);
+        pxText('Несколько недель спустя...', GW/2, 120, 14, '#8af', 'center');
+        pxText('$'+money, GW/2, 170, 20, '#ff0', 'center');
+        pxText('REP: '+reputation+'/100', GW/2, 210, 12, '#8f8', 'center');
+        // Montage effect
+        const dots = '...';
+        for(let i=0;i<3;i++){
+            const a=Math.sin(anim*0.05+i*2)*0.5+0.5;
+            ctx.globalAlpha=a;
+            pxText('.', GW/2+i*8-8, 240, 14, '#888', 'center');
+        }
+        ctx.globalAlpha=1;
+    },
+    enter: () => {
+        reputation=100; money=300; updateHUD();
+        unlockAch('rep100');
+        showDialog('[Система]','Репутация достигла 100! Ты теперь ТОП ГАРАНТ! Все тебя знают и доверяют.',[], advanceScene);
+    }
+};
+S['2_8'] = {
+    draw: () => {
+        drawRoom('night', false);
+        drawCharacter('tricky',280,170,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Tricky]','Деньги неплохие... Но я вижу, как трейдеры делают в 10 раз больше. Гарант - это потолок.',[], ()=>{
+            showDialog('[???]','Привет. Слышал, ты шаришь в Роблоксе. Знаю кое-что покруче гарантий. Если интересно - пиши. - Slade',[
+                {text:'"Кто ты?"', action:()=>{
+                    unlockAch('meetSlade');choices.push('cautious_slade');
+                    showDialog('[Slade]','Тот, кто поможет тебе подняться. Увидимся.',[], ()=>{
+                        chapter=3;scene=0;
+                        showChapterCard('ГЛАВА 2 ЗАВЕРШЕНА','Гарант', advanceScene);
+                    });
+                }},
+                {text:'"Слушаю."', action:()=>{
+                    unlockAch('meetSlade');choices.push('direct_slade');
+                    showDialog('[Slade]','Умный. Поговорим.',[], ()=>{
+                        chapter=3;scene=0;
+                        showChapterCard('ГЛАВА 2 ЗАВЕРШЕНА','Гарант', advanceScene);
+                    });
+                }}
+            ]);
+        });
+    }
+};
+
+// --- CHAPTER 3 ---
+S['3_1'] = {
+    draw: () => {
+        // Cyber room
+        ctx.fillStyle='#050510';ctx.fillRect(0,0,GW,GH);
+        ctx.strokeStyle='rgba(0,255,255,0.08)';ctx.lineWidth=1;
+        for(let i=0;i<GW;i+=30){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,GH);ctx.stroke();}
+        for(let i=0;i<GH;i+=30){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(GW,i);ctx.stroke();}
+        drawCharacter('tricky',180,170,'idle',anim);
+        drawCharacter('slade',380,170,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Slade]','Значит ты Tricky. Наслышан о твоей гарантской работе. Впечатляет для пацана, который не ходит в школу.',[], ()=>{
+            showDialog('[Tricky]','Что за "кое-что покруче"?',[], ()=>{
+                showDialog('[Slade]','Дюп. Дублирование предметов. Ты берёшь один предмет и делаешь из него два. Или десять. Или сотню.',[
+                    {text:'"Это же эксплойт!"', action:()=>{
+                        showDialog('[Slade]','Можно получить бан. Если делать тупо. А я научу делать умно. Риски есть, но награда стоит того.',[], advanceScene);
+                    }},
+                    {text:'"Научи меня всему."', action:advanceScene}
+                ]);
+            });
+        });
+    }
+};
+S['3_2'] = {
+    draw: () => {
+        ctx.fillStyle='#050510';ctx.fillRect(0,0,GW,GH);
+        pxText('КАК РАБОТАЕТ ДЮП:', GW/2, 60, 12, '#0ff', 'center');
+        const steps=['1. Предмет в инвентаре','2. Специальная последовательность','3. Глитч в системе','4. ДВА предмета!','5. Продаём = ПРИБЫЛЬ'];
+        steps.forEach((s,i)=>pxText(s, 160, 100+i*30, 9, i===4?'#ff0':'#fff'));
+        drawCharacter('slade',500,170,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Slade]','Смотри, это базовая последовательность. Повторяй за мной. Тайминг - это всё.',[
+            {text:'Начать обучение', action:()=>startMinigame('rhythm')}
+        ]);
+    }
+};
+S['3_3'] = {
+    draw: () => {
+        // Garden
+        const gg=ctx.createLinearGradient(0,0,0,GH);
+        gg.addColorStop(0,'#87CEEB');gg.addColorStop(0.6,'#5a8a3a');gg.addColorStop(1,'#2a5a1a');
+        ctx.fillStyle=gg;ctx.fillRect(0,0,GW,GH);
+        // Flowers
+        for(let i=0;i<12;i++){
+            const fx=30+i*52, fy=180+Math.sin(i+anim*0.03)*8;
+            ctx.fillStyle=['#f0f','#ff0','#0ff','#f00','#fa0'][i%5];
+            ctx.beginPath();ctx.arc(fx,fy,10+Math.sin(i*3)*3,0,Math.PI*2);ctx.fill();
+            ctx.fillStyle='#0a5a0a';
+            ctx.fillRect(fx-2,fy+8,4,30);
+            // Leaves
+            ctx.fillStyle='#1a8a1a';
+            ctx.beginPath();ctx.ellipse(fx+6,fy+18,6,3,0.5,0,Math.PI*2);ctx.fill();
+        }
+        pxText('GROW A GARDEN', GW/2, 40, 14, '#fff', 'center');
+    },
+    enter: () => {
+        showDialog('[Slade]','Мелочь - хорошо для практики. Но настоящие деньги - в Grow A Garden. Rainbow Flower по $50, Golden Seed по $100. Начинай дюпать.',[
+            {text:'Начать дюпать!', action:()=>startMinigame('garden')}
+        ]);
+    }
+};
+S['3_4'] = {
+    draw: () => {
+        ctx.fillStyle='#050510';ctx.fillRect(0,0,GW,GH);
+        // Lightning effects
+        if(Math.random()<0.05){
+            ctx.fillStyle='rgba(255,255,0,0.05)';ctx.fillRect(0,0,GW,GH);
+        }
+        const dm = Math.min(money, 195000);
+        ctx.shadowColor='#ff0';ctx.shadowBlur=20;
+        pxText('$'+dm.toLocaleString(), GW/2, 160, 24, '#ff0', 'center');
+        ctx.shadowBlur=0;
+        pxText('Приближаемся к цели...', GW/2, 220, 10, '#8af', 'center');
+        drawCharacter('tricky',280,200,'idle',anim);
+    },
+    enter: () => {
+        money=195000; updateHUD();
+        showDialog('[Tricky]','$195,000... Один последний дюп. Самый большой. Mythic Bloom. $200,000 так близко, что я чувствую вкус победы.',[
+            {text:'ДЕЛАЮ ЭТО!', action:()=>{
+                storyFlags.goodPath=true;
+                startMinigame('finalDupe');
+            }},
+            {text:'Слишком рискованно. Остановлюсь.', action:()=>{
+                storyFlags.badEnding=true;
+                unlockAch('badEnd');
+                scene='bad_ending';
+                advanceScene();
+            }}
+        ]);
+    }
+};
+S['3_5'] = {
+    draw: () => {
+        ctx.fillStyle='#050510';ctx.fillRect(0,0,GW,GH);
+        // Fireworks
+        for(let i=0;i<25;i++){
+            const fx=(i*73+anim*2)%GW;
+            const fy=30+(i*47+anim)%200;
+            ctx.fillStyle=`hsl(${(i*25+anim*4)%360},100%,55%)`;
+            const s=3+Math.sin(anim*0.08+i)*2;
+            ctx.fillRect(Math.floor(fx),Math.floor(fy),Math.ceil(s),Math.ceil(s));
+        }
+        ctx.shadowColor='#ff0';ctx.shadowBlur=30;
+        pxText('$200,000', GW/2, 170, 28, '#ff0', 'center');
+        ctx.shadowBlur=0;
+        pxText('ЛЕГЕНДА!', GW/2, 220, 16, '#fff', 'center');
+    },
+    enter: () => {
+        showDialog('[Slade]','МЫ СДЕЛАЛИ ЭТО!!! ЛЕГЕНДА! Из пацана с тахикардией в это! Ты - машина, Tricky!',[
+            {text:'Невероятно!', action:()=>{
+                chapter=4;scene=0;
+                showChapterCard('ГЛАВА 3 ЗАВЕРШЕНА','Эра Дюпа', advanceScene);
+            }}
+        ]);
+    }
+};
+
+S['bad_ending'] = {
+    draw: () => {
+        ctx.fillStyle='#080808';ctx.fillRect(0,0,GW,GH);
+        // Rain
+        ctx.fillStyle='rgba(100,100,160,0.4)';
+        for(let i=0;i<80;i++){
+            const rx=(i*23+anim*3)%GW;
+            const ry=(i*41+anim*7)%GH;
+            ctx.fillRect(rx,ry,1,8);
+        }
+        drawCharacter('tricky',280,190,'sad',anim);
+        pxText('2 месяца спустя...', GW/2, 50, 12, '#555', 'center');
+        pxText('Баланс: $0', GW/2, 310, 14, '#f44', 'center');
+    },
+    enter: () => {
+        money=0; updateHUD();
+        showDialog('[Система]','Ваш аккаунт заблокирован. Все транзакции отменены. Деньги конфискованы. Все дюпнутые предметы отслежены и удалены.',[], ()=>{
+            showDialog('[Tricky]','Я должен был идти до конца, когда был шанс... Теперь у меня ничего нет. Slade был прав.',[
+                {text:'ПЛОХАЯ КОНЦОВКА', action:()=>{
+                    showNotif(`<div style="color:#f44;font-size:12px;">ПЛОХАЯ КОНЦОВКА</div><div style="color:#888;font-size:8px;margin-top:8px;">Жизнь "А ЧТО ЕСЛИ?"</div><div style="margin-top:16px;"><button class="pixel-btn" onclick="location.reload()">Начать заново</button></div>`, 999999);
+                }}
+            ]);
+        });
+    }
+};
+
+// --- CHAPTER 4 ---
+S['4_1'] = {
+    draw: () => {
+        // Telegram style
+        ctx.fillStyle='#17212b';ctx.fillRect(0,0,GW,GH);
+        // Chat bubbles
+        ctx.fillStyle='#2b5278';
+        roundRect(20,40,280,50,6);
+        pxText('NFT News', 30, 60, 8, '#8af');
+        pxText('Ion Gem - будущее NFT!', 30, 78, 7, '#ddd');
+        ctx.fillStyle='#2b5278';
+        roundRect(20,100,200,40,6);
+        pxText('to the moon!', 30, 125, 8, '#ff0');
+        pxText('31 МАЯ', 560, 25, 9, '#666');
+        drawCharacter('tricky',450,170,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Tricky]','Ion Gem... Интересно. Цена низкая, но потенциал огромный. NFT подарки - это новый тренд. Рискнуть?',[
+            {text:'Ва-банк - купить 300+ Ion Gem!', action:()=>{
+                money-=50000; storyFlags.ionGems=300;
+                unlockAch('nftWhale'); updateHUD();
+                showDialog('[Tricky]','300 Ion Gem куплено! Это будет огромно. Я чувствую это.',[], advanceScene);
+            }},
+            {text:'Начать с малого', action:()=>{
+                money-=10000; storyFlags.ionGems=50; updateHUD();
+                showDialog('[Tricky]','50 Ion Gem. Начну осторожно.',[], advanceScene);
+            }}
+        ]);
+    }
+};
+S['4_2'] = {
+    draw: () => {
+        ctx.fillStyle='#17212b';ctx.fillRect(0,0,GW,GH);
+        pxText('1 ИЮНЯ - 14 ИЮНЯ', GW/2, 50, 11, '#8af', 'center');
+        pxText('Всё идёт хорошо...', GW/2, 80, 9, '#8f8', 'center');
+        // Rising graph
+        ctx.strokeStyle='#0f0';ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(100,250);
+        for(let i=0;i<10;i++) ctx.lineTo(100+i*45,250-i*16-Math.sin(i)*15);
+        ctx.stroke();
+        pxText('Ion Gem: '+(storyFlags.ionGems||300), GW/2, 280, 10, '#0ff', 'center');
+    },
+    enter: () => {
+        showDialog('[226 velosipedov]','Привет! Нашёл крутой инструмент для отслеживания цен NFT. Глянь! [ссылка]',[
+            {text:'Кликнуть на ссылку', action:()=>{
+                storyFlags.ratInstalled=true;
+                showDialog('[Tricky]','Выглядит нормально... Открываю.',[], advanceScene);
+            }},
+            {text:'"Что за инструмент?"', action:()=>{
+                storyFlags.ratInstalled=true;
+                showDialog('[226 velosipedov]','Это от разработчиков! Показывает цены в реальном времени. Все пользуются! Доверься.',[
+                    {text:'Ладно, гляну...', action:()=>{
+                        showDialog('[Tricky]','Ну, раз все пользуются...',[], advanceScene);
+                    }}
+                ]);
+            }}
+        ]);
+    }
+};
+S['4_3'] = {
+    draw: () => {
+        ctx.fillStyle='#0a0000';ctx.fillRect(0,0,GW,GH);
+        // Glitch
+        for(let i=0;i<12;i++){
+            ctx.fillStyle=`rgba(255,0,0,${Math.random()*0.2})`;
+            ctx.fillRect(Math.random()*GW, Math.random()*GH, Math.random()*120, 4);
+        }
+        pxText('15 ИЮНЯ', GW/2, 40, 14, '#f00', 'center');
+        pxText('КОШЕЛЁК СКОМПРОМЕТИРОВАН', GW/2, 80, 10, '#f55', 'center');
+        pxText('ОБНАРУЖЕН RAT-ВИРУС', GW/2, 110, 9, '#f88', 'center');
+        // Counter
+        const left = Math.max(0, (storyFlags.ionGems||300)-Math.floor(anim*0.5));
+        pxText('Ion Gem: '+left, GW/2, 160, 12, '#f00', 'center');
+        // 226 reveal
+        ctx.fillStyle='#200';
+        roundRect(180,200,280,70,4);
+        pxText('226 velosipedov:', 200, 225, 8, '#f55');
+        pxText('Спасибо за гемы, Tricky', 200, 248, 8, '#fff');
+    },
+    enter: () => {
+        unlockAch('betrayal');
+        showDialog('[СИСТЕМА]','ВНИМАНИЕ! Обнаружен несанкционированный доступ! Ваши Ion Gem переводятся на внешний кошелёк! RAT-вирус активирован!',[
+            {text:'Нет... НЕТ!', action:advanceScene}
+        ]);
+    }
+};
+S['4_4'] = {
+    draw: () => {
+        ctx.fillStyle='#0a0a1a';ctx.fillRect(0,0,GW,GH);
+        pxText('СООБЩЕСТВО ОБЪЕДИНЯЕТСЯ', GW/2, 60, 11, '#fff', 'center');
+        drawCharacter('portals',120,170,'idle',anim);
+        drawCharacter('mrkt',280,170,'idle',anim);
+        drawCharacter('tonnel',440,170,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Portals]','Мы слышали что случилось. Хотим помочь. Я могу сканировать маркетплейсы.',[], ()=>{
+            showDialog('[Mrkt]','Я уже вижу твои гемы на нескольких площадках. Могу заморозить подозрительные листинги.',[], ()=>{
+                showDialog('[Tonnel]','А я отслежу куда ушли остальные через блокчейн.',[
+                    {text:'Спасибо, ребят... Начинаем!', action:()=>startMinigame('blockchain')}
+                ]);
+            });
+        });
+    }
+};
+S['4_5'] = {
+    draw: () => {
+        ctx.fillStyle='#0a0a1a';ctx.fillRect(0,0,GW,GH);
+        pxText('РЕЗУЛЬТАТЫ ВОССТАНОВЛЕНИЯ', GW/2, 60, 10, '#8af', 'center');
+        pxText('Восстановлено: 127 Ion Gem', GW/2, 120, 10, '#0f0', 'center');
+        pxText('Потеряно: 173 Ion Gem', GW/2, 150, 10, '#f55', 'center');
+        drawCharacter('tricky',280,190,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Mrkt]','Мы сделали всё что могли, Tricky. 226 слишком быстро вывел часть на миксеры.',[], ()=>{
+            showDialog('[Tricky]','Это больше чем я ожидал. Спасибо вам. Серьёзно.',[], advanceScene);
+        });
+    }
+};
+S['4_6'] = {
+    draw: () => {
+        drawRoom('evening', true);
+        // Warm sunset glow
+        ctx.fillStyle='rgba(255,150,50,0.06)';ctx.fillRect(0,0,GW,GH);
+        drawCharacter('tricky',280,170,'idle',anim);
+    },
+    enter: () => {
+        showDialog('[Tricky]','Я потерял много. Но я всё ещё здесь.',[], ()=>{
+            showDialog('[Tricky]','Тахикардия не остановила меня. Скамеры не остановили меня. 226 не остановил меня. Я знаю, как работает этот мир теперь. И я ещё не закончил.',[
+                {text:'"Я буду умнее в этот раз."', action:()=>{
+                    choices.push('wise_ending');
+                    endGame('wise');
+                }},
+                {text:'"Новый день - новый дюп."', action:()=>{
+                    choices.push('optimistic_ending');
+                    endGame('optimistic');
+                }}
+            ]);
+        });
+    }
+};
+
+function roundRect(x,y,w,h,r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arc(x+w-r,y+r,r,-Math.PI/2,0);
+    ctx.lineTo(x+w,y+h-r);ctx.arc(x+w-r,y+h-r,r,0,Math.PI/2);
+    ctx.lineTo(x+r,y+h);ctx.arc(x+r,y+h-r,r,Math.PI/2,Math.PI);
+    ctx.lineTo(x,y+r);ctx.arc(x+r,y+r,r,Math.PI,Math.PI*1.5);
+    ctx.fill();
+}
+
+function showChapterCard(title, subtitle, cb) {
+    transition(()=>{
+        showNotif(`<div style="font-size:14px;color:#fff;margin-bottom:10px;">${title}</div><div style="font-size:9px;color:#8af;">${subtitle}</div>`, 3500);
+    });
+    setTimeout(()=>{ hideNotif(); if(cb) cb(); }, 4500);
+}
+
+function endGame(type) {
+    unlockAch('survivor');
+    const msg = type==='wise' ?
+        'Tricky стал мудрее. Он готов к новым вызовам.' :
+        'Падения - это часть пути. Но путь продолжается.';
+    
+    showNotif(`
+        <div style="font-size:14px;color:#ff0;margin-bottom:14px;">TRICKY: ИСТОРИЯ</div>
+        <div style="font-size:10px;margin-bottom:16px;">- ФИНАЛ -</div>
+        <div style="text-align:left;font-size:8px;line-height:2.5;margin-bottom:16px;">
+            Достижений: ${achievements.length}/18<br>
+            Заработано: $${money.toLocaleString()}<br>
+            Решений: ${choices.length}
+        </div>
+        <div style="font-size:8px;color:#8af;margin-bottom:12px;line-height:2;">${msg}</div>
+        <div style="font-size:7px;color:#666;margin-bottom:16px;">"Tricky никогда не останавливается."</div>
+        <button class="pixel-btn" onclick="location.reload()" style="font-size:9px;">Играть снова</button>
+    `, 999999);
+}
+
+// ===== SCENE NAVIGATION =====
+function getSceneKey() {
+    if(typeof scene==='string') return scene;
+    return chapter+'_'+(scene+1);
+}
+
+function advanceScene() {
+    if(typeof scene==='string'){
+        const s=S[scene];
+        if(s){if(s.enter) s.enter();}
+        saveGame();
+        return;
+    }
+    scene++;
+    const key=getSceneKey();
+    if(!S[key]){console.log('No scene:',key);return;}
+    transition(()=>{
+        const s=S[key];
+        if(s.enter) s.enter();
+    });
+    saveGame();
+}
+
+// ===== MENU =====
+function showMenu() {
+    gameState='menu';
+    document.getElementById('hud').style.display='none';
+    
+    document.getElementById('menuOverlay').style.display='block';
+    document.getElementById('menuOverlay').innerHTML=`
+        <div style="position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <div id="menuTitle" style="font-size:20px;color:#fff;text-shadow:0 0 20px #f0f,0 0 40px #0ff;margin-bottom:50px;letter-spacing:3px;animation:glitch 3s infinite;">
+                TRICKY: ИСТОРИЯ
+            </div>
+            <button class="pixel-btn" onclick="startGame()" style="margin:8px;min-width:240px;">
+                Новая Игра
+            </button>
+            <button class="pixel-btn" onclick="continueGame()" style="margin:8px;min-width:240px;">
+                Продолжить
+            </button>
+            <button class="pixel-btn" onclick="showAchMenu()" style="margin:8px;min-width:240px;">
+                Достижения
+            </button>
+            <div style="position:absolute;bottom:14px;color:#444;font-size:7px;letter-spacing:2px;">
+                v2.0 | HD PIXEL ART
+            </div>
+        </div>
+        <style>
+            @keyframes glitch {
+                0%,88%,100%{transform:translate(0);}
+                90%{transform:translate(-3px,1px);}
+                92%{transform:translate(3px,-1px);}
+                94%{transform:translate(-2px,2px);}
+                96%{transform:translate(2px,-1px);}
+            }
+        </style>
+    `;
+    
+    // Start music immediately
+    setTimeout(startMenuMusic, 100);
+}
+
+function startGame() {
+    initAudio(); playSFX('click'); stopMenuMusic();
+    chapter=1;scene=0;money=0;reputation=0;energy=100;choices=[];storyFlags={};
+    document.getElementById('menuOverlay').style.display='none';
+    gameState='playing';
+    transition(advanceScene);
+}
+
+function continueGame() {
+    initAudio(); playSFX('click'); stopMenuMusic();
+    if(loadGame()){
+        document.getElementById('menuOverlay').style.display='none';
+        gameState='playing';
+        const s=S[getSceneKey()];
+        if(s){
+            transition(()=>{if(s.enter) s.enter();});
+        }
+    } else {
+        showNotif('<div style="font-size:10px;">Нет сохранённой игры!</div>', 2000);
+    }
+}
+
+function showAchMenu() {
+    playSFX('click');
+    let h='<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#0a0a1a;padding:24px;border:3px solid #5a5a9a;max-width:92%;max-height:80%;overflow-y:auto;">';
+    h+='<div style="color:#ff0;font-size:11px;text-align:center;margin-bottom:16px;">ДОСТИЖЕНИЯ</div>';
+    h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">';
+    ACHIEVEMENTS.forEach(a=>{
+        const u=achievements.includes(a.id);
+        h+=`<div style="background:${u?'#1a2a1a':'#1a1a2a'};padding:10px;border:2px solid ${u?'#4a8a4a':'#3a3a5a'};text-align:center;">
+            <div style="font-size:8px;color:${u?'#8f8':'#555'};margin-bottom:4px;">${u?a.icon:'[???]'}</div>
+            <div style="font-size:7px;color:${u?'#cfc':'#555'};">${u?a.name:'???'}</div>
+        </div>`;
+    });
+    h+='</div><div style="text-align:center;margin-top:16px;"><button class="pixel-btn" onclick="showMenu()" style="font-size:9px;">Назад</button></div></div>';
+    document.getElementById('menuOverlay').innerHTML=h;
+}
+
+// ===== SAVE/LOAD =====
+function saveGame() {
+    localStorage.setItem('tricky_v2', JSON.stringify({
+        chapter,scene,money,reputation,energy,choices,achievements,storyFlags,skipSchoolCount
+    }));
+}
+function loadGame() {
+    const d=localStorage.getItem('tricky_v2');
+    if(!d) return false;
+    const o=JSON.parse(d);
+    chapter=o.chapter||1;scene=o.scene||0;money=o.money||0;
+    reputation=o.reputation||0;energy=o.energy||100;
+    choices=o.choices||[];achievements=o.achievements||[];
+    storyFlags=o.storyFlags||{};skipSchoolCount=o.skipSchoolCount||0;
+    updateHUD();
+    return true;
+}
+
+// ===== MAIN LOOP =====
+function loop(t) {
+    const dt=t-lastT; lastT=t;
+    anim+=dt*0.06;
+    
+    ctx.fillStyle='#0a0a12';ctx.fillRect(0,0,GW,GH);
+    
+    if(gameState==='menu'){
+        drawCityBg();
+    } else if(gameState==='playing'&&!minigameActive){
+        const s=S[getSceneKey()];
+        if(s&&s.draw) s.draw();
+    }
+    
+    updateParticles();
+    drawParticles();
+    
+    requestAnimationFrame(loop);
+}
+
+// ===== INIT =====
+window.onload = function() {
+    const fill=document.getElementById('loadingFill');
+    let prog=0;
+    const li=setInterval(()=>{
+        prog+=Math.random()*15+5;
+        if(prog>100) prog=100;
+        fill.style.width=prog+'%';
+        if(prog>=100){
+            clearInterval(li);
+            setTimeout(()=>{
+                document.getElementById('loadingScreen').classList.add('fade');
+                setTimeout(()=>{
+                    document.getElementById('loadingScreen').style.display='none';
+                    showMenu();
+                    requestAnimationFrame(loop);
+                },1000);
+            },500);
+        }
+    },200);
+    
+    const d=localStorage.getItem('tricky_v2');
+    if(d){try{achievements=JSON.parse(d).achievements||[];}catch(e){}}
+    
+    document.addEventListener('touchstart',()=>initAudio(),{once:true});
+    document.addEventListener('click',()=>{initAudio();startMenuMusic();},{once:true});
+};
+
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('gesturechange',e=>e.preventDefault());
+</script>
+</body>
+</html>
